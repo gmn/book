@@ -73,12 +73,20 @@ class book:
         res = db.find(obj)
         return res.count() == 1
 
-    def toString(self, index=' -'):
+    def toString(self, index=' -', lists=[]):
         s = ''
         for i in ('title','author','added','finished','year','comments','rating'):
             e = self.__getattribute__(i)
             if e:
                 s = '{}{} {:8s}: {}\n'.format(s, (index if i=='title' else ' -'), i, e)
+        if lists and self._id is not None:
+            list_names = []
+            for lst in lists:
+                if self._id in [ b['_id'] for b in lst['books'] ]:
+                    list_names.append(lst['name'])
+            if list_names:
+                s = '{} - memberof: {}\n'.format(s, ', '.join(list_names))
+
         return s
 
     def shortString(self):
@@ -94,10 +102,18 @@ def new_book( title, args ):
     obj = {'_t':'book','title':title,'added':'now()'}
     if args:
         obj['author'] = args[0]
+    if len(args) > 1:
+        obj['year'] = args[1]
+    if len(args) > 2:
+        obj['comments'] = args[2]
     for i in ('title','author','year','comments'):
         if i == 'title' and title:
             continue
         if i == 'author' and args:
+            continue
+        if i == 'year' and len(args) > 1:
+            continue
+        if i == 'comments' and len(args) > 2:
             continue
         rn = input('{} > '.format(i))
         if rn:
@@ -129,14 +145,14 @@ def book_from_index_title( title ):
             return False
         return res.data[0]
 
-def list_from_index_name( args ):
+def list_from_index_name( name ):
     try:
-        index = int(args[0])
+        index = int(name)
         res = db.find({'_t':'list'}).sort({'name':1})
         return res.data[index-1]
     except:
         # see if argument is a list's name
-        res = db.find({'_t':'list','name':' '.join(args)})
+        res = db.find({'_t':'list','name':name})
         if res.count() != 1:
             p('Error: bad argument, list may either be index or name')
             return False
@@ -160,7 +176,7 @@ def add_book_to_list( title, args ):
     book_id = book['_id']
 
     # LIST
-    List = list_from_index_name( args )
+    List = list_from_index_name( ' '.join(args) )
     if not List:
         return
 
@@ -184,8 +200,10 @@ def print_help():
   new [title]             add a new book
   add <title> <list>      add a book to a list
   [list name][all]        show books in a list, or all books in all lists
-  finish [index][title]   mark a book 'finished reading'                
+  finish [index][title]   mark a book 'finished reading'
   edit <title>            edit a book
+  del <title|id>          delete a book
+  rm <title|id> <list>    remove book from list
 """)
 
 def finish_book(title, args):
@@ -219,9 +237,9 @@ def edit_book(title, args):
         ans = input( '{:8} ["{}"] > '.format(k,v))
         if ans:
             book[k] = ans.lstrip().rstrip()
-    
+
     sys.stdout.write('\n --> GOT:\n')
-    
+
     for k, v in book.items():
         if k.startswith('_'):
             continue
@@ -237,6 +255,41 @@ def edit_book(title, args):
     else:
         p('skipping')
 
+def delete_book(title):
+    book = book_from_index_title( title )
+    if not book:
+        return
+
+    db.remove({'_t':'book', '_id':book['_id']})
+    res = db.find({'_id':book['_id']})
+    if res.count() == 0:
+        p( book['title'] + ' removed successfully' )
+    db.save()
+
+def rm_book_from_list(title, args):
+    book = book_from_index_title( title )
+    if not book:
+        return
+    List = list_from_index_name( ' '.join(args) )
+    if not List:
+        return
+
+    if book['_id'] not in [ b['_id'] for b in List['books'] ]:
+        p( '"{}" not in "{}"'.format(book['title'], List['name']) )
+        return
+
+    ## remove elt
+    for b in List['books']:
+        if b['_id'] == book['_id']:
+            List['books'].remove(b)
+            break
+
+    ## update & save
+    db.update({'_id':List['_id']}, {'$set':{'books':List['books']}}).save()
+
+    ## report
+    p( 'removed "{}" from "{}"'.format(book['title'], List['name']) )
+
 ##
 #
 # entry point
@@ -251,7 +304,8 @@ elif op == 'books' or op == '-l':
     for i, r in enumerate(res.data):
         b = book(**r)
         if title == '-l':
-            p(b.toString(index='{}:'.format(i+1)))
+            lists = db.find({'_t':'list'}).sort({'name':1})
+            p(b.toString(index='{}:'.format(i+1), lists=lists.data))
         else:
             p('{}) {}'.format((i+1),b.shortString()))
 # new book
@@ -270,6 +324,10 @@ elif op == 'finish':
     finish_book(title, args)
 elif op == 'edit':
     edit_book(title, args)
+elif op == 'del':
+    delete_book(title)
+elif op == 'rm':
+    rm_book_from_list(title, args)
 else:
     # if op is a list name, show the books in the list
     if op:
@@ -283,7 +341,7 @@ else:
                     bb = db.find({'_id':b['_id']}).sort({'_id':1})
                     if bb.count():
                         bk = book(**bb.data[0])
-                        p(bk.toString(index='{}:'.format(i+1)))
+                        p(bk.toString(index='{}:'.format(i+1), lists=res.data))
                 if op.lower() != 'all':
                     break
     else:

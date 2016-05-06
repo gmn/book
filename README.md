@@ -1,7 +1,7 @@
 
 # mostly this app is to keep track of what I'm reading and reading next.
 
-
+# SCHEMA
 lists:
     - reading
     - want_to_read
@@ -59,3 +59,6 @@ TODO:
 - sub-flags for each command such as: -l <limit> -o <order>
 - date pretty print
 - edit book
+
+- tags, each book can have 0 to many tags, but not the same tag twice
+
