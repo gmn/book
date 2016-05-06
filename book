@@ -330,10 +330,12 @@ elif op == 'rm':
     rm_book_from_list(title, args)
 else:
     # if op is a list name, show the books in the list
+    found = False
     if op:
-        res = db.find({'_t':'list'})
-        for r in res.data:
+        Lists = db.find({'_t':'list'})
+        for r in Lists.data:
             if r['name'] == op.lower() or op.lower() == 'all': # found it
+                found = True
                 p('-' * 39)
                 p('+ books in "{}"'.format(r['name']))
                 p('-' * 39)
@@ -341,8 +343,16 @@ else:
                     bb = db.find({'_id':b['_id']}).sort({'_id':1})
                     if bb.count():
                         bk = book(**bb.data[0])
-                        p(bk.toString(index='{}:'.format(i+1), lists=res.data))
+                        p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
                 if op.lower() != 'all':
                     break
+        # try to match titles or authors
+        if not found:
+            match = re.compile('.*{}.*'.format(op), re.IGNORECASE)
+            res = db.find({'_t':'book', '$or':[{'title':match},{'author':match}]})
+            for i, bk in enumerate([book(**b) for b in res.data]):
+                p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
+            if res.data:
+                found = True
     else:
         print_help()
