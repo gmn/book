@@ -92,8 +92,12 @@ class book:
 
 def new_book( title, args ):
     obj = {'_t':'book','title':title,'added':'now()'}
+    if args:
+        obj['author'] = args[0]
     for i in ('title','author','year','comments'):
         if i == 'title' and title:
+            continue
+        if i == 'author' and args:
             continue
         rn = input('{} > '.format(i))
         if rn:
@@ -209,14 +213,14 @@ def edit_book(title, args):
     if not book:
         return
 
-    for k, v in book.items():
-        if k.startswith('_'):
-            continue
+    for k in ('title','author','added','finished','year','comments','rating'):
+        #for k, v in book.items():
+        v = '' if k not in book else book[k]
         ans = input( '{:8} ["{}"] > '.format(k,v))
         if ans:
             book[k] = ans.lstrip().rstrip()
     
-    sys.stdout.write('\ngot:\n')
+    sys.stdout.write('\n --> GOT:\n')
     
     for k, v in book.items():
         if k.startswith('_'):
@@ -242,7 +246,7 @@ def edit_book(title, args):
 if op == '-h' or op == '--help':
     print_help()
 # show all books
-elif op == 'books':
+elif op == 'books' or op == '-l':
     res = db.find({'_t':'book'}).sort({'added':-1})
     for i, r in enumerate(res.data):
         b = book(**r)
@@ -251,7 +255,7 @@ elif op == 'books':
         else:
             p('{}) {}'.format((i+1),b.shortString()))
 # new book
-elif op == 'new':
+elif op == 'new' or op == '-n':
     new_book( title, args )
 # show lists
 elif op == 'lists':
@@ -259,7 +263,7 @@ elif op == 'lists':
     for i, r in enumerate(res.data):
         p('{}: {}'.format( i+1, r['name'] ) )
 # add book to list
-elif op == 'add':
+elif op == 'add' or op == '-a':
     add_book_to_list( title, args )
 # mark book finished
 elif op == 'finish':
