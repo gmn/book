@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+
+"""
+mostly this app is to keep track of what I'm reading and reading next.
+"""
+
+import sys, os, json, re, random, copy
+
+BOOKS_PATH = '/home/gnaughto/Private/logs/databases/books.json'
+QUERYABLE_PATH = '/home/gnaughto/code/pyqueryable'
+
+sys.path.append(QUERYABLE_PATH)
+from Queryable import db_object
+
+# globals
+p    = lambda X: print( str(X) )
+db   = db_object(path=BOOKS_PATH, jsonarg={'sort_keys':True,'indent':2}).load()
+# arguments
+op   = sys.argv[1:2]
+op = '' if len(op) == 0 else op.pop().lower()
+title = sys.argv[2:3]
+title = '' if len(title) == 0 else title.pop()
+args = sys.argv[3:]
+#args = ' '.join(args) if len(args) > 0 else ''
+
+
+class book:
+    title = ''
+    author = ''
+    added = ''
+    finished = ''
+    year = ''
+    comments = ''
+    rating = ''
+
+    def __init__(self,title=None,author=None,added=None,finished=None,year=None,comments=None,rating=None,_id=None,_t=None):
+        if title:
+            self.title = title
+        if author:
+            self.author = author
+        if added:
+            self.added = added
+        if finished:
+            self.finished = finished
+        if year:
+            self.year = year
+        if comments:
+            self.comments = comments
+        if rating:
+            self.rating = rating
+        if _id:
+            self._id = _id
+
+    def insert( self, db ):
+        if self.check_exists(db):
+            return False
+        obj = {'_t':'book'}
+        for i in ('title','author','added','finished','year','comments','rating'):
+            e = self.__getattribute__(i)
+            if e:
+                obj[i] = e
+        db.insert(obj)
+        return True
+
+    def check_exists( self, db ):
+        obj = {'_t':'book'}
+        for i in ('title','author','year'):
+            e = self.__getattribute__(i)
+            if e:
+                obj[i] = e
+        if not obj.get('title'): # not exist or unset. must have title.
+            return False
+        res = db.find(obj)
+        return res.count() == 1
+
+    def toString(self, index=' -'):
+        s = ''
+        for i in ('title','author','added','finished','year','comments','rating'):
+            e = self.__getattribute__(i)
+            if e:
+                s = '{}{} {:8s}: {}\n'.format(s, (index if i=='title' else ' -'), i, e)
+        return s
+
+    def shortString(self):
+        s = ''
+        for i in ('title','author','year'):
+            e = self.__getattribute__(i)
+            if e:
+                s = '{}{}'.format( s, (' - '+e) if s else e )
+        return s
+
+
+def new_book( title, args ):
+    obj = {'_t':'book','title':title,'added':'now()'}
+    for i in ('title','author','year','comments'):
+        if i == 'title' and title:
+            continue
+        rn = input('{} > '.format(i))
+        if rn:
+            obj[i] = rn
+
+    b = book(**obj)
+    if not b.title:
+        p( 'book must have at least a title ')
+        return
+    if not b.insert(db):
+        p('"{}" already exists'.format(title))
+        return
+    db.save()
+
+    res = db.find({'title':title})
+    if res.count() > 0:
+        c = book(**res.data[0])
+        p('Adding:\n{}'.format(c.toString()) )
+
+def book_from_index_title( title ):
+    try:
+        index = int(title)
+        res = db.find({'_t':'book'}).sort({'added':-1})
+        return res.data[index-1]
+    except:
+        res = db.find({'_t':'book','title':title})
+        if res.count() != 1:
+            p('Error: bad argument, Book may either be index or title')
+            return False
+        return res.data[0]
+
+def list_from_index_name( args ):
+    try:
+        index = int(args[0])
+        res = db.find({'_t':'list'}).sort({'name':1})
+        return res.data[index-1]
+    except:
+        # see if argument is a list's name
+        res = db.find({'_t':'list','name':' '.join(args)})
+        if res.count() != 1:
+            p('Error: bad argument, list may either be index or name')
+            return False
+        return res.data[0]
+
+def add_book_to_list( title, args ):
+    if not title:
+        p( 'must provide a title')
+        return
+    if not args:
+        p( 'must provide a list')
+        return
+
+    book_id = -1   # int
+    List = {}   # dict
+
+    # BOOK
+    book = book_from_index_title( title )
+    if not book:
+        return
+    book_id = book['_id']
+
+    # LIST
+    List = list_from_index_name( args )
+    if not List:
+        return
+
+    # see if the book is already in List
+    for l in List['books']:
+        if l['_id'] == book_id:
+            p('"{}" is already in list "{}"'.format(book['title'],List['name']))
+            return
+
+    List['books'].append({'_id':book_id})
+    db.update({'_t':'list','name':List['name']},{'$set':{'books':List['books']}})
+    db.save()
+    p('adding "{}" to "{}"'.format(book['title'], List['name']) )
+
+
+def print_help():
+    p("""Usage:
+  --help, -h              show this help
+  books                   show all books
+  lists                   show all lists
+  new [title]             add a new book
+  add <title> <list>      add a book to a list
+  [list name][all]        show books in a list, or all books in all lists
+  finish [index][title]   mark a book 'finished reading'                
+  edit <title>            edit a book
+""")
+
+def finish_book(title, args):
+    # BOOk
+    book = book_from_index_title( title )
+    if not book:
+        return
+    book_id = book['_id']
+
+    if 'finished' in book:
+        p('"{}" already marked finished'.format(book['title']))
+        if '-f' not in args:
+            return
+        p('-f set. forcing finish again')
+
+    db.update({'_id':book_id},{'$set':{'finished':'now()'}})
+    db.save()
+    res = db.find({'_id':book_id})
+    d = res.data[0]
+    p( '"{}" marked finished on "{}"'.format(d['title'], d['finished']) )
+
+def edit_book(title, args):
+    # BOOk
+    book = book_from_index_title( title )
+    if not book:
+        return
+
+    for k, v in book.items():
+        if k.startswith('_'):
+            continue
+        ans = input( '{:8} ["{}"] > '.format(k,v))
+        if ans:
+            book[k] = ans.lstrip().rstrip()
+    
+    sys.stdout.write('\ngot:\n')
+    
+    for k, v in book.items():
+        if k.startswith('_'):
+            continue
+        p( '{:8} "{}"'.format(k,v) )
+
+    ans = input('replace? y/N > ')
+    if ans.lower().startswith('y'):
+        db.update({'_id':book['_id']},{'$set':book})
+        db.save()
+        res = db.find({'_id':book['_id']})
+        d = res.data[0]
+        p( '"{}" updated'.format(d['title']) )
+    else:
+        p('skipping')
+
+##
+#
+# entry point
+#
+#
+
+if op == '-h' or op == '--help':
+    print_help()
+# show all books
+elif op == 'books':
+    res = db.find({'_t':'book'}).sort({'added':-1})
+    for i, r in enumerate(res.data):
+        b = book(**r)
+        if title == '-l':
+            p(b.toString(index='{}:'.format(i+1)))
+        else:
+            p('{}) {}'.format((i+1),b.shortString()))
+# new book
+elif op == 'new':
+    new_book( title, args )
+# show lists
+elif op == 'lists':
+    res = db.find({'_t':'list'}).sort({'name':1})
+    for i, r in enumerate(res.data):
+        p('{}: {}'.format( i+1, r['name'] ) )
+# add book to list
+elif op == 'add':
+    add_book_to_list( title, args )
+# mark book finished
+elif op == 'finish':
+    finish_book(title, args)
+elif op == 'edit':
+    edit_book(title, args)
+else:
+    # if op is a list name, show the books in the list
+    if op:
+        res = db.find({'_t':'list'})
+        for r in res.data:
+            if r['name'] == op.lower() or op.lower() == 'all': # found it
+                p('-' * 39)
+                p('+ books in "{}"'.format(r['name']))
+                p('-' * 39)
+                for i, b in enumerate( r['books'] ):
+                    bb = db.find({'_id':b['_id']}).sort({'_id':1})
+                    if bb.count():
+                        bk = book(**bb.data[0])
+                        p(bk.toString(index='{}:'.format(i+1)))
+                if op.lower() != 'all':
+                    break
+    else:
+        print_help()
