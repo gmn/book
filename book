@@ -40,7 +40,8 @@ def print_help():
 
 
 
-class book:
+class Book:
+    _id = ''
     title = ''
     author = ''
     added = ''
@@ -48,8 +49,12 @@ class book:
     year = ''
     comments = ''
     rating = ''
+    cost = ''
+    attribs = ('_id','title','author','added','finished','year','comments','rating','cost')
 
-    def __init__(self,title=None,author=None,added=None,finished=None,year=None,comments=None,rating=None,_id=None,_t=None):
+    def __init__(self,_id=None,title=None,author=None,added=None,finished=None,year=None,comments=None,rating=None,cost=None,_t=None):
+        if _id:
+            self._id = _id
         if title:
             self.title = title
         if author:
@@ -64,14 +69,14 @@ class book:
             self.comments = comments
         if rating:
             self.rating = rating
-        if _id:
-            self._id = _id
+        if cost:
+            self.cost = cost
 
     def insert( self, db ):
         if self.check_exists(db):
             return False
         obj = {'_t':'book'}
-        for i in ('title','author','added','finished','year','comments','rating'):
+        for i in self.attribs[1:]:
             e = self.__getattribute__(i)
             if e:
                 obj[i] = e
@@ -91,10 +96,10 @@ class book:
 
     def toString(self, index=' -', lists=[]):
         s = ''
-        for i in ('title','author','added','finished','year','comments','rating'):
+        for i in Book.attribs:
             e = self.__getattribute__(i)
             if e:
-                s = '{}{} {:8s}: {}\n'.format(s, (index if i=='title' else ' -'), i, e)
+                s = '{}{} {:8s}: {}\n'.format(s, (index if i=='_id' else ' -'), i, e)
         if lists and self._id is not None:
             list_names = []
             for lst in lists:
@@ -106,8 +111,9 @@ class book:
         return s
 
     def shortString(self):
-        s = ''
-        for i in ('title','author','year'):
+        s = '[{}]'.format(self._id) if self._id else ''
+        s = '{} {}'.format(s, self.title)
+        for i in ('author','year'):
             e = self.__getattribute__(i)
             if e:
                 s = '{}{}'.format( s, (' - '+e) if s else e )
@@ -135,9 +141,9 @@ def new_book( title, args ):
         if rn:
             obj[i] = rn
 
-    b = book(**obj)
+    b = Book(**obj)
     if not b.title:
-        p( 'error: book must have at least a title ')
+        p( '** error: book must have at least a title ')
         return
     if not b.insert(db):
         p('"{}" already exists'.format(title))
@@ -146,40 +152,40 @@ def new_book( title, args ):
 
     res = db.find({'title':b.title})
     if res.count() > 0:
-        c = book(**res.data[0])
+        c = Book(**res.data[0])
         p('Adding:\n{}'.format(c.toString()) )
 
 def book_from_index_title( title ):
     try:
         index = int(title)
-        res = db.find({'_t':'book'}).sort({'added':-1})
-        return res.data[index-1]
+        res = db.find({'_id':index})
+        return res.data[0]
     except:
         res = db.find({'_t':'book','title':title})
         if res.count() != 1:
-            p('error: book must be index or title')
+            p('** error: book must be index or title')
             return False
         return res.data[0]
 
 def list_from_index_name( name ):
     try:
         index = int(name)
-        res = db.find({'_t':'list'}).sort({'name':1})
-        return res.data[index-1]
+        res = db.find({'_id':index})
+        return res.data[0]
     except:
         # see if argument is a list's name
         res = db.find({'_t':'list','name':name})
         if res.count() != 1:
-            p('error: list must be index or name')
+            p('** error: list must be index or name')
             return False
         return res.data[0]
 
 def add_book_to_list( title, args ):
     if not title:
-        p( 'error: must provide a title')
+        p( '** error: must provide a title')
         return
     if not args:
-        p( 'error: must provide a list')
+        p( '** error: must provide a list')
         return
 
     book_id = -1   # int
@@ -199,7 +205,7 @@ def add_book_to_list( title, args ):
     # see if the book is already in List
     for l in List['books']:
         if l['_id'] == book_id:
-            p('error: "{}" is already in list "{}"'.format(book['title'],List['name']))
+            p('** error: "{}" is already in list "{}"'.format(book['title'],List['name']))
             return
 
     List['books'].append({'_id':book_id})
@@ -232,8 +238,7 @@ def edit_book(title, args):
     if not book:
         return
 
-    for k in ('title','author','added','finished','year','comments','rating'):
-        #for k, v in book.items():
+    for k in Book.attribs[1:]:
         v = '' if k not in book else book[k]
         ans = input( '{:8} ["{}"] > '.format(k,v))
         if ans:
@@ -301,13 +306,13 @@ def listadd(title, args):
 
     ## empty?
     if not o.get('name'):
-        p('error: list cant have empty name')
+        p('** error: list cant have empty name')
         return
 
     ## check if already exists
     res = db.find({'_t':'list','name':o['name']})
     if res.count() > 0:
-        p('error: list "{}" already exists'.format(o['name']))
+        p('** error: list "{}" already exists'.format(o['name']))
         return
 
     ## confirm
@@ -333,23 +338,23 @@ if op == '-h' or op == '--help':
     print_help()
 # show all books
 elif op == 'books' or op == '-l':
-    order = 1 if title == '-r' else -1
+    order = -1 if title == '-r' else 1
     res = db.find({'_t':'book'}).sort({'added':order})
     for i, r in enumerate(res.data):
-        b = book(**r)
+        b = Book(**r)
         if title == '-l':
             lists = db.find({'_t':'list'}).sort({'name':1})
             p(b.toString(index='{}:'.format(i+1), lists=lists.data))
         else:
-            p('{}) {}'.format((i+1),b.shortString()))
+            p('{}: {}'.format((i+1),b.shortString()))
 # new book
 elif op == 'new' or op == '-n':
     new_book( title, args )
 # show lists
 elif op == 'lists':
-    res = db.find({'_t':'list'}).sort({'name':1})
+    res = db.find({'_t':'list'}).sort({'_id':1})
     for i, r in enumerate(res.data):
-        p('{}: {}'.format( i+1, r['name'] ) )
+        p('{}: [{}] {}'.format( i+1, r['_id'], r['name'] ) )
 # add book to list
 elif op == 'add' or op == '-a':
     add_book_to_list( title, args )
@@ -365,28 +370,73 @@ elif op == 'rm':
 elif op == 'listadd':
     listadd(title, args)
 else:
-    # if op is a list name, show the books in the list
     found = False
     if op:
+        # if op is a list name, show the books in the list
         Lists = db.find({'_t':'list'})
+        sets = []
+        names = []
         for r in Lists.data:
-            if r['name'] == op.lower() or op.lower() == 'all': # found it
+            if r['name'] == op.lower():
+                ids = set()
+                sets.append(ids)
                 found = True
-                p('-' * 39)
-                p('+ books in "{}"'.format(r['name']))
-                p('-' * 39)
-                for i, b in enumerate( r['books'] ):
-                    bb = db.find({'_id':b['_id']}).sort({'_id':1})
-                    if bb.count():
-                        bk = book(**bb.data[0])
-                        p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
-                if op.lower() != 'all':
-                    break
+                names.append(r['name'])
+                for b in r['books']:
+                    ids.add(b['_id'])  
+            elif r['name'] == title:    
+                ids = set()
+                sets.append(ids)
+                found = True
+                names.append(r['name'])
+                for b in r['books']:
+                    ids.add(b['_id'])  
+            elif r['name'] in args:
+                for a in args:
+                    if r['name'] == a:
+                        ids = set()
+                        sets.append(ids)
+                        found = True
+                        names.append(r['name'])
+                        for b in r['books']:
+                            ids.add(b['_id'])  
+
+        ids = set()
+        if title == '&' or '&' in args:
+            if sets:
+                ids = sets[0]
+                for i in range(1, len(sets)):
+                    ids = ids & sets[i]
+        else:
+            for s in sets:
+                ids = ids.union(s)
+
+        if ids or names:
+            p('-' * 39)
+            p('+ books in "{}"'.format(', '.join(names)))
+            p('-' * 39)
+            for i, _id in enumerate( ids ):
+                bb = db.find({'_id':_id}).sort({'_id':1})
+                if bb.count():
+                    bk = Book(**bb.data[0])
+                    p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
+
+        elif not found and op.lower() == 'all': # all lists
+            found = True
+            p('-' * 39)
+            p('+ books in "{}"'.format(r['name']))
+            p('-' * 39)
+            for i, b in enumerate( r['books'] ):
+                bb = db.find({'_id':b['_id']}).sort({'_id':1})
+                if bb.count():
+                    bk = Book(**bb.data[0])
+                    p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
+
         # try to match titles or authors
         if not found:
             match = re.compile('.*{}.*'.format(op), re.IGNORECASE)
             res = db.find({'_t':'book', '$or':[{'title':match},{'author':match}]})
-            for i, bk in enumerate([book(**b) for b in res.data]):
+            for i, bk in enumerate([Book(**b) for b in res.data]):
                 p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
             if res.data:
                 found = True
