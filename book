@@ -370,75 +370,73 @@ elif op == 'rm':
 elif op == 'listadd':
     listadd(title, args)
 else:
-    found = False
-    if op:
-        # if op is a list name, show the books in the list
-        Lists = db.find({'_t':'list'})
-        sets = []
-        names = []
-        for r in Lists.data:
-            if r['name'] == op.lower():
-                ids = set()
-                sets.append(ids)
-                found = True
-                names.append(r['name'])
-                for b in r['books']:
-                    ids.add(b['_id'])  
-            elif r['name'] == title:    
-                ids = set()
-                sets.append(ids)
-                found = True
-                names.append(r['name'])
-                for b in r['books']:
-                    ids.add(b['_id'])  
-            elif r['name'] in args:
-                for a in args:
-                    if r['name'] == a:
-                        ids = set()
-                        sets.append(ids)
-                        found = True
-                        names.append(r['name'])
-                        for b in r['books']:
-                            ids.add(b['_id'])  
-
-        ids = set()
-        if title == '&' or '&' in args:
-            if sets:
-                ids = sets[0]
-                for i in range(1, len(sets)):
-                    ids = ids & sets[i]
-        else:
-            for s in sets:
-                ids = ids.union(s)
-
-        if ids or names:
-            p('-' * 39)
-            p('+ books in "{}"'.format(', '.join(names)))
-            p('-' * 39)
-            for i, _id in enumerate( ids ):
-                bb = db.find({'_id':_id}).sort({'_id':1})
-                if bb.count():
-                    bk = Book(**bb.data[0])
-                    p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
-
-        elif not found and op.lower() == 'all': # all lists
-            found = True
-            p('-' * 39)
-            p('+ books in "{}"'.format(r['name']))
-            p('-' * 39)
-            for i, b in enumerate( r['books'] ):
-                bb = db.find({'_id':b['_id']}).sort({'_id':1})
-                if bb.count():
-                    bk = Book(**bb.data[0])
-                    p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
-
-        # try to match titles or authors
-        if not found:
-            match = re.compile('.*{}.*'.format(op), re.IGNORECASE)
-            res = db.find({'_t':'book', '$or':[{'title':match},{'author':match}]})
-            for i, bk in enumerate([Book(**b) for b in res.data]):
-                p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
-            if res.data:
-                found = True
-    else:
+    if not op:
         print_help()
+        sys.exit(0)
+
+    # if op is a list name, show the books in the list, optionally combining multiple lists
+    Lists = db.find({'_t':'list'})
+    sets = []
+    names = []
+    for r in Lists.data:
+        if r['name'] == op.lower():
+            ids = set()
+            sets.append(ids)
+            names.append(r['name'])
+            for b in r['books']:
+                ids.add(b['_id'])  
+        elif r['name'] == title:    
+            ids = set()
+            sets.append(ids)
+            names.append(r['name'])
+            for b in r['books']:
+                ids.add(b['_id'])  
+        elif r['name'] in args:
+            for a in args:
+                if r['name'] == a:
+                    ids = set()
+                    sets.append(ids)
+                    names.append(r['name'])
+                    for b in r['books']:
+                        ids.add(b['_id'])  
+
+    ids = set()
+    if title == '|' or '|' in args:
+        operator = ' | '
+        for s in sets:
+            ids = ids.union(s)
+    else:
+        operator = ' & '
+        if sets:
+            ids = sets[0]
+            for i in range(1, len(sets)):
+                ids = ids.intersection( sets[i] )
+
+    if ids or names:
+        p('-' * 39)
+        p('+ books in "{}"'.format(operator.join(names)))
+        p('-' * 39)
+        for i, _id in enumerate( ids ):
+            bb = db.find({'_id':_id}).sort({'_id':1})
+            if bb.count():
+                bk = Book(**bb.data[0])
+                p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
+
+    # or show all lists
+    elif op.lower() == 'all': 
+        p('-' * 39)
+        p('+ books in "{}"'.format(r['name']))
+        p('-' * 39)
+        for i, b in enumerate( r['books'] ):
+            bb = db.find({'_id':b['_id']}).sort({'_id':1})
+            if bb.count():
+                bk = Book(**bb.data[0])
+                p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
+
+    # or try to match titles or authors
+    else:
+        match = re.compile('.*{}.*'.format(op), re.IGNORECASE)
+        res = db.find({'_t':'book', '$or':[{'title':match},{'author':match}]})
+        for i, bk in enumerate([Book(**b) for b in res.data]):
+            p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
+
