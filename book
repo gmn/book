@@ -23,6 +23,22 @@ title = '' if len(title) == 0 else title.pop()
 args = sys.argv[3:]
 #args = ' '.join(args) if len(args) > 0 else ''
 
+def print_help():
+    p("""Usage:
+  --help, -h              show this help
+  books                   show all books
+  lists                   show all lists
+  new [title]             add a new book
+  add <title> <list>      add a book to a list
+  [list name][all]        show books in a list, or all books in all lists
+  finish [index][title]   mark a book 'finished reading'
+  edit <title>            edit a book
+  del <title|id>          delete a book
+  rm <title|id> <list>    remove book from list
+  listadd [name]          add a new list
+""")
+
+
 
 class book:
     title = ''
@@ -121,14 +137,14 @@ def new_book( title, args ):
 
     b = book(**obj)
     if not b.title:
-        p( 'book must have at least a title ')
+        p( 'error: book must have at least a title ')
         return
     if not b.insert(db):
         p('"{}" already exists'.format(title))
         return
     db.save()
 
-    res = db.find({'title':title})
+    res = db.find({'title':b.title})
     if res.count() > 0:
         c = book(**res.data[0])
         p('Adding:\n{}'.format(c.toString()) )
@@ -141,7 +157,7 @@ def book_from_index_title( title ):
     except:
         res = db.find({'_t':'book','title':title})
         if res.count() != 1:
-            p('Error: bad argument, Book may either be index or title')
+            p('error: book must be index or title')
             return False
         return res.data[0]
 
@@ -154,16 +170,16 @@ def list_from_index_name( name ):
         # see if argument is a list's name
         res = db.find({'_t':'list','name':name})
         if res.count() != 1:
-            p('Error: bad argument, list may either be index or name')
+            p('error: list must be index or name')
             return False
         return res.data[0]
 
 def add_book_to_list( title, args ):
     if not title:
-        p( 'must provide a title')
+        p( 'error: must provide a title')
         return
     if not args:
-        p( 'must provide a list')
+        p( 'error: must provide a list')
         return
 
     book_id = -1   # int
@@ -183,28 +199,13 @@ def add_book_to_list( title, args ):
     # see if the book is already in List
     for l in List['books']:
         if l['_id'] == book_id:
-            p('"{}" is already in list "{}"'.format(book['title'],List['name']))
+            p('error: "{}" is already in list "{}"'.format(book['title'],List['name']))
             return
 
     List['books'].append({'_id':book_id})
     db.update({'_t':'list','name':List['name']},{'$set':{'books':List['books']}})
     db.save()
     p('adding "{}" to "{}"'.format(book['title'], List['name']) )
-
-
-def print_help():
-    p("""Usage:
-  --help, -h              show this help
-  books                   show all books
-  lists                   show all lists
-  new [title]             add a new book
-  add <title> <list>      add a book to a list
-  [list name][all]        show books in a list, or all books in all lists
-  finish [index][title]   mark a book 'finished reading'
-  edit <title>            edit a book
-  del <title|id>          delete a book
-  rm <title|id> <list>    remove book from list
-""")
 
 def finish_book(title, args):
     # BOOk
@@ -290,6 +291,38 @@ def rm_book_from_list(title, args):
     ## report
     p( 'removed "{}" from "{}"'.format(book['title'], List['name']) )
 
+def listadd(title, args):
+    ## sanity check args
+    o = {'_t':'list','books':[],'name':title}
+    if not title:
+        rn = input('name > ')
+        if rn:
+            o['name'] = rn.lstrip().rstrip()
+
+    ## empty?
+    if not o.get('name'):
+        p('error: list cant have empty name')
+        return
+
+    ## check if already exists
+    res = db.find({'_t':'list','name':o['name']})
+    if res.count() > 0:
+        p('error: list "{}" already exists'.format(o['name']))
+        return
+
+    ## confirm
+    yn = input('sure you want to create new list "{}" y/N? '.format(o['name']))
+    if not yn.lower().startswith('y'):
+        p('bailing')
+        return
+
+    ## add it & save
+    db.insert(o).save()
+
+    ## report
+    p( 'create list: "{}"'.format(o['name']))
+
+
 ##
 #
 # entry point
@@ -300,7 +333,8 @@ if op == '-h' or op == '--help':
     print_help()
 # show all books
 elif op == 'books' or op == '-l':
-    res = db.find({'_t':'book'}).sort({'added':-1})
+    order = 1 if title == '-r' else -1
+    res = db.find({'_t':'book'}).sort({'added':order})
     for i, r in enumerate(res.data):
         b = book(**r)
         if title == '-l':
@@ -328,6 +362,8 @@ elif op == 'del':
     delete_book(title)
 elif op == 'rm':
     rm_book_from_list(title, args)
+elif op == 'listadd':
+    listadd(title, args)
 else:
     # if op is a list name, show the books in the list
     found = False
