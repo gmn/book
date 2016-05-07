@@ -439,4 +439,6 @@ else:
         res = db.find({'_t':'book', '$or':[{'title':match},{'author':match}]})
         for i, bk in enumerate([Book(**b) for b in res.data]):
             p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
+        if not res.data:
+            print_help()
 
