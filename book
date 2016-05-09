@@ -384,6 +384,8 @@ else:
         print_help()
         sys.exit(0)
 
+    backwards = True if '-r' in title or '-r' in args else False
+    longprint = True if '-l' in title or '-l' in args else False
     # if op is a list name, show the books in the list, optionally combining multiple lists
     Lists = db.find({'_t':'list'})
     sets = []
@@ -426,29 +428,43 @@ else:
         p('-' * 39)
         p('+ books in "{}"'.format(operator.join(names)))
         p('-' * 39)
-        for i, _id in enumerate( ids ):
-            bb = db.find({'_id':_id}).sort({'_id':1})
+        generator = reversed(list(ids)) if backwards else ids
+        for i, _id in enumerate( generator ):
+            bb = db.find({'_id':_id})
             if bb.count():
                 bk = Book(**bb.data[0])
-                p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
+                if longprint:
+                    p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
+                else:
+                    p('{}: {}'.format((i+1),bk.shortString()))
 
     # or show all lists
     elif op.lower() == 'all': 
-        p('-' * 39)
-        p('+ books in "{}"'.format(r['name']))
-        p('-' * 39)
-        for i, b in enumerate( r['books'] ):
-            bb = db.find({'_id':b['_id']}).sort({'_id':1})
-            if bb.count():
-                bk = Book(**bb.data[0])
-                p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
+        list_of_lists = reversed(Lists.data) if backwards else Lists.data
+        for r in list_of_lists:
+            p('-' * 39)
+            p('+ books in "{}"'.format(r['name']))
+            p('-' * 39)
+            generator = reversed(r['books']) if backwards else r['books']
+            for i, b in enumerate( generator ):
+                bb = db.find({'_id':b['_id']})
+                if bb.count():
+                    bk = Book(**bb.data[0])
+                    if longprint:
+                        p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
+                    else:
+                        p('{}: {}'.format((i+1),bk.shortString()))
 
     # or try to match titles or authors
     else:
         match = re.compile('.*{}.*'.format(op), re.IGNORECASE)
-        res = db.find({'_t':'book', '$or':[{'title':match},{'author':match}]})
+        order = -1 if backwards else 1
+        res = db.find({'_t':'book', '$or':[{'title':match},{'author':match}]}).sort({'_id':order})
         for i, bk in enumerate([Book(**b) for b in res.data]):
-            p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
+            if longprint:
+                p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
+            else:
+                p('{}: {}'.format((i+1),bk.shortString()))
         if not res.data:
             print_help()
 
