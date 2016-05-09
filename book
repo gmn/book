@@ -39,8 +39,8 @@ Usage:
   listadd [name]          add a new list
 
 If no command arguments are found:
-  book will try to match one or more a list names and print the intersection of 
-  the books contained in those lists. Fail that, it will try to print any books 
+  book will try to match one or more a list names and print the intersection of
+  the books contained in those lists. Fail that, it will try to print any books
   with matching author or title.
 """)
 
@@ -397,13 +397,13 @@ else:
             sets.append(ids)
             names.append(r['name'])
             for b in r['books']:
-                ids.add(b['_id'])  
-        elif r['name'] == title:    
+                ids.add(b['_id'])
+        elif r['name'] == title:
             ids = set()
             sets.append(ids)
             names.append(r['name'])
             for b in r['books']:
-                ids.add(b['_id'])  
+                ids.add(b['_id'])
         elif r['name'] in args:
             for a in args:
                 if r['name'] == a:
@@ -411,7 +411,7 @@ else:
                     sets.append(ids)
                     names.append(r['name'])
                     for b in r['books']:
-                        ids.add(b['_id'])  
+                        ids.add(b['_id'])
 
     ids = set()
     if title == '|' or '|' in args:
@@ -429,7 +429,7 @@ else:
         p('-' * 39)
         p('+ books in "{}"'.format(operator.join(names)))
         p('-' * 39)
-        generator = reversed(list(ids)) if backwards else ids
+        generator = reversed(sorted(ids)) if backwards else sorted(ids)
         for i, _id in enumerate( generator ):
             bb = db.find({'_id':_id})
             if bb.count():
@@ -440,7 +440,7 @@ else:
                     p('{}: {}'.format((i+1),bk.shortString()))
 
     # or show all lists
-    elif op.lower() == 'all': 
+    elif op.lower() == 'all':
         list_of_lists = reversed(Lists.data) if backwards else Lists.data
         for r in list_of_lists:
             p('-' * 39)
