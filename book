@@ -21,23 +21,28 @@ op = '' if len(op) == 0 else op.pop().lower()
 title = sys.argv[2:3]
 title = '' if len(title) == 0 else title.pop()
 args = sys.argv[3:]
-#args = ' '.join(args) if len(args) > 0 else ''
+
 
 def print_help():
-    p("""Usage:
+    p("""
+Usage:
   --help, -h              show this help
-  books                   show all books
+  books, -l [-l][-r]      show all books (-l long format, -r reverse order)
   lists                   show all lists
-  new [title]             add a new book
-  add <title> <list>      add a book to a list
+  new, -n [title]         add a new book
+  add, -a <title> <list>  add a book to a list
   [list name][all]        show books in a list, or all books in all lists
   finish [index][title]   mark a book 'finished reading'
   edit <title>            edit a book
   del <title|id>          delete a book
   rm <title|id> <list>    remove book from list
   listadd [name]          add a new list
-""")
 
+If no command arguments are found:
+  book will try to match one or more a list names and print the intersection of 
+  the books contained in those lists. Fail that, it will try to print any books 
+  with matching author or title.
+""")
 
 
 class Book:
@@ -150,7 +155,12 @@ def new_book( title, args ):
         return
     db.save()
 
-    res = db.find({'title':b.title})
+    qu = {'title':b.title}
+    if b.author:
+        qu['author'] = b.author
+    if b.year:
+        qu['year'] = b.year
+    res = db.find(qu)
     if res.count() > 0:
         c = Book(**res.data[0])
         p('Adding:\n{}'.format(c.toString()) )
@@ -338,11 +348,11 @@ if op == '-h' or op == '--help':
     print_help()
 # show all books
 elif op == 'books' or op == '-l':
-    order = -1 if title == '-r' else 1
+    order = -1 if title == '-r' or '-r' in args else 1
     res = db.find({'_t':'book'}).sort({'added':order})
     for i, r in enumerate(res.data):
         b = Book(**r)
-        if title == '-l':
+        if title == '-l' or '-l' in args:
             lists = db.find({'_t':'list'}).sort({'name':1})
             p(b.toString(index='{}:'.format(i+1), lists=lists.data))
         else:
