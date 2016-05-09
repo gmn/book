@@ -386,6 +386,7 @@ else:
 
     backwards = True if '-r' in title or '-r' in args else False
     longprint = True if '-l' in title or '-l' in args else False
+
     # if op is a list name, show the books in the list, optionally combining multiple lists
     Lists = db.find({'_t':'list'})
     sets = []
@@ -465,6 +466,8 @@ else:
                 p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
             else:
                 p('{}: {}'.format((i+1),bk.shortString()))
+
+        # or, fail all that, print help
         if not res.data:
             print_help()
 
