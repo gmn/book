@@ -176,29 +176,38 @@ def new_book( title, args ):
         p('Adding:\n{}'.format(c.toString()) )
 
 def book_from_index_title( title ):
+    def from_title( title ):
+        res = db.find({'_t':'book', 'title':title})
+        if res.count() != 1:
+            return False
+        return Book( **res.data[0] )
+
     try:
         index = int(title)
-        res = db.find({'_id':index})
-        return res.data[0]
     except:
-        res = db.find({'_t':'book','title':title})
+        return from_title( title )
+
+    res = db.find({'_t':'book', '_id':index})
+    if res.count() != 1:
+        return from_title( title )
+    return Book( **res.data[0] )
+
+def list_from_index_name( name ):
+    def from_name( name ):
+        res = db.find({'_t':'list', 'name':name})
         if res.count() != 1:
-            p('** error: book must be index or title')
             return False
         return res.data[0]
 
-def list_from_index_name( name ):
     try:
-        index = int(name)
-        res = db.find({'_id':index})
-        return res.data[0]
+        index = int(name)           # try to cast it
     except:
-        # see if argument is a list's name
-        res = db.find({'_t':'list','name':name})
-        if res.count() != 1:
-            p('** error: list must be index or name')
-            return False
-        return res.data[0]
+        return from_name( name )    # if not must be name or nothing
+
+    res = db.find({'_t':'list', '_id':index})
+    if res.count() != 1:
+        return from_name( name )
+    return res.data[0]
 
 def add_book_to_list( title, args ):
     if not title:
@@ -214,12 +223,14 @@ def add_book_to_list( title, args ):
     # BOOK
     book = book_from_index_title( title )
     if not book:
+        p('** error: book must be index or title')
         return
     book_id = book['_id']
 
     # LIST
     List = list_from_index_name( ' '.join(args) )
     if not List:
+        p('** error: list must be index or name')
         return
 
     # see if the book is already in List
@@ -237,6 +248,7 @@ def finish_book(title, args):
     # BOOk
     book = book_from_index_title( title )
     if not book:
+        p('** error: book must be index or title')
         return
     book_id = book['_id']
 
@@ -256,6 +268,7 @@ def edit_book(title, args):
     # BOOk
     book = book_from_index_title( title )
     if not book:
+        p('** error: book must be index or title')
         return
 
     for k in Book.attribs[1:]:
@@ -284,6 +297,7 @@ def edit_book(title, args):
 def delete_book(title):
     book = book_from_index_title( title )
     if not book:
+        p('** error: book must be index or title')
         return
 
     db.remove({'_t':'book', '_id':book['_id']})
@@ -295,9 +309,11 @@ def delete_book(title):
 def rm_book_from_list(title, args):
     book = book_from_index_title( title )
     if not book:
+        p('** error: book must be index or title')
         return
     List = list_from_index_name( ' '.join(args) )
     if not List:
+        p('** error: list must be index or name')
         return
 
     if book['_id'] not in [ b['_id'] for b in List['books'] ]:
@@ -349,6 +365,24 @@ def listadd(title, args):
 
 
 def default_behavior(op, title, args):
+
+    def print_book( i, book, longprint, Lists ):
+        if longprint:
+            p(book.toString(index='{}:'.format(i+1), lists=Lists.data))
+        else:
+            p('{}: {}'.format((i+1), book.shortString()))
+
+    def print_list( r, backwards, longprint, Lists ):
+        p('-' * 39)
+        p('+ books in "{}"'.format(r['name']))
+        p('-' * 39)
+        generator = reversed(r['books']) if backwards else r['books']
+        for i, b in enumerate( generator ):
+            bb = db.find({'_id':b['_id']})
+            if bb.count():
+                bk = Book(**bb.data[0])
+                print_book( i, bk, longprint, Lists )
+
     backwards = True if '-r' in title or '-r' in args else False
     longprint = True if '-l' in title or '-l' in args else False
 
@@ -399,27 +433,13 @@ def default_behavior(op, title, args):
             bb = db.find({'_id':_id})
             if bb.count():
                 bk = Book(**bb.data[0])
-                if longprint:
-                    p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
-                else:
-                    p('{}: {}'.format((i+1),bk.shortString()))
+                print_book( i, bk, longprint, Lists )
 
     # or show all lists
     elif op.lower() == 'all':
         list_of_lists = reversed(Lists.data) if backwards else Lists.data
         for r in list_of_lists:
-            p('-' * 39)
-            p('+ books in "{}"'.format(r['name']))
-            p('-' * 39)
-            generator = reversed(r['books']) if backwards else r['books']
-            for i, b in enumerate( generator ):
-                bb = db.find({'_id':b['_id']})
-                if bb.count():
-                    bk = Book(**bb.data[0])
-                    if longprint:
-                        p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
-                    else:
-                        p('{}: {}'.format((i+1),bk.shortString()))
+            print_list( r, backwards, longprint, Lists )
 
     # or try to match titles or authors
     else:
@@ -427,17 +447,24 @@ def default_behavior(op, title, args):
         order = -1 if backwards else 1
         res = db.find({'_t':'book', '$or':[{'title':match},{'author':match}]}).sort({'_id':order})
         for i, bk in enumerate([Book(**b) for b in res.data]):
-            if longprint:
-                p(bk.toString(index='{}:'.format(i+1), lists=Lists.data))
-            else:
-                p('{}: {}'.format((i+1),bk.shortString()))
+            print_book( i, bk, longprint, Lists )
 
-        # or, fail all that, print help
+        # or look for list number, or book number
         if not res.data:
-            sys.stdout.write( '\n        **************' )
-            sys.stdout.write( '\n        ** no match **' )
-            sys.stdout.write( '\n        **************' )
-            print_help()
+            List = list_from_index_name( op )
+            if List:
+                print_list( List, backwards, longprint, Lists )
+            else:
+                book = book_from_index_title( op )
+                if book:
+                    print_book( 0, book, longprint, Lists )
+
+                # or, fail all that, print help
+                else:
+                    sys.stdout.write( '\n        **************' )
+                    sys.stdout.write( '\n        ** no match **' )
+                    sys.stdout.write( '\n        **************' )
+                    print_help()
 
 
 ##
