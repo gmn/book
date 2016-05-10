@@ -478,5 +478,8 @@ else:
 
         # or, fail all that, print help
         if not res.data:
+            sys.stdout.write( '\n  **************' )
+            sys.stdout.write( '\n  ** no match **' )
+            sys.stdout.write( '\n  **************' )
             print_help()
 
