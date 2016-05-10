@@ -141,7 +141,8 @@ def new_book( title, args ):
     if len(args) > 1:
         obj['year'] = args[1]
     if len(args) > 2:
-        obj['comments'] = args[2]
+        obj['comments'] = ' '.join(args[2:])
+
     for i in ('title','author','year','comments'):
         if i == 'title' and title:
             continue
@@ -347,52 +348,7 @@ def listadd(title, args):
     p( 'create list: "{}"'.format(o['name']))
 
 
-##
-#
-# entry point
-#
-#
-
-if op == '-h' or op == '--help':
-    print_help()
-# show all books
-elif op == 'books' or op == '-l':
-    order = -1 if title == '-r' or '-r' in args else 1
-    res = db.find({'_t':'book'}).sort({'added':order})
-    for i, r in enumerate(res.data):
-        b = Book(**r)
-        if title == '-l' or '-l' in args:
-            lists = db.find({'_t':'list'}).sort({'name':1})
-            p(b.toString(index='{}:'.format(i+1), lists=lists.data))
-        else:
-            p('{}: {}'.format((i+1),b.shortString()))
-# new book
-elif op == 'new' or op == '-n':
-    new_book( title, args )
-# show lists
-elif op == 'lists':
-    res = db.find({'_t':'list'}).sort({'_id':1})
-    for i, r in enumerate(res.data):
-        p('{}: [{}] {}'.format( i+1, r['_id'], r['name'] ) )
-# add book to list
-elif op == 'add' or op == '-a':
-    add_book_to_list( title, args )
-# mark book finished
-elif op == 'finish':
-    finish_book(title, args)
-elif op == 'edit':
-    edit_book(title, args)
-elif op == 'del':
-    delete_book(title)
-elif op == 'rm':
-    rm_book_from_list(title, args)
-elif op == 'listadd':
-    listadd(title, args)
-else:
-    if not op:
-        print_help()
-        sys.exit(0)
-
+def default_behavior(op, title, args):
     backwards = True if '-r' in title or '-r' in args else False
     longprint = True if '-l' in title or '-l' in args else False
 
@@ -478,8 +434,54 @@ else:
 
         # or, fail all that, print help
         if not res.data:
-            sys.stdout.write( '\n  **************' )
-            sys.stdout.write( '\n  ** no match **' )
-            sys.stdout.write( '\n  **************' )
+            sys.stdout.write( '\n        **************' )
+            sys.stdout.write( '\n        ** no match **' )
+            sys.stdout.write( '\n        **************' )
             print_help()
 
+
+##
+#
+# entry point
+#
+#
+
+if op == '-h' or op == '--help':
+    print_help()
+# show all books
+elif op == 'books' or op == '-l':
+    order = -1 if title == '-r' or '-r' in args else 1
+    res = db.find({'_t':'book'}).sort({'added':order})
+    for i, r in enumerate(res.data):
+        b = Book(**r)
+        if title == '-l' or '-l' in args:
+            lists = db.find({'_t':'list'}).sort({'name':1})
+            p(b.toString(index='{}:'.format(i+1), lists=lists.data))
+        else:
+            p('{}: {}'.format((i+1),b.shortString()))
+# new book
+elif op == 'new' or op == '-n':
+    new_book( title, args )
+# show lists
+elif op == 'lists':
+    res = db.find({'_t':'list'}).sort({'_id':1})
+    for i, r in enumerate(res.data):
+        p('{}: [{}] {}'.format( i+1, r['_id'], r['name'] ) )
+# add book to list
+elif op == 'add' or op == '-a':
+    add_book_to_list( title, args )
+# mark book finished
+elif op == 'finish':
+    finish_book(title, args)
+elif op == 'edit':
+    edit_book(title, args)
+elif op == 'del':
+    delete_book(title)
+elif op == 'rm':
+    rm_book_from_list(title, args)
+elif op == 'listadd':
+    listadd(title, args)
+elif op:
+    default_behavior(op, title, args)
+else:
+    print_help()
