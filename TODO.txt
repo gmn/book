@@ -1,0 +1,8 @@
+
+
+- need to introduce a ranking mechanism
+    - the ranking mechanism might-be/probably-is per-list
+
+- thinking about and almost certainly should add support for movies & stuff
+
+- need to fix README
