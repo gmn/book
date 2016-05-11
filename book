@@ -57,6 +57,16 @@ class Book:
     cost = ''
     attribs = ('_id','title','author','added','finished','year','comments','rating','cost')
 
+    def toDict(self):
+        obj = {}
+        for key in self.attribs:
+            if key.startswith('_'): #if user wants _id they can get it themselves
+                continue
+            val = self.__getattribute__(key)
+            if val:
+                obj[key] = val
+        return obj
+
     def __init__(self,_id=None,title=None,author=None,added=None,finished=None,year=None,comments=None,rating=None,cost=None,_t=None):
         if _id:
             self._id = _id
@@ -252,7 +262,7 @@ def finish_book(title, args):
         return
     book_id = book['_id']
 
-    if 'finished' in book:
+    if book['finished']:
         p('"{}" already marked finished'.format(book['title']))
         if '-f' not in args:
             return
@@ -272,25 +282,22 @@ def edit_book(title, args):
         return
 
     for k in Book.attribs[1:]:
-        v = '' if k not in book else book[k]
-        ans = input( '{:8} ["{}"] > '.format(k,v))
+        ans = input( '{:8} ["{}"] > '.format(k, book[k]))
         if ans:
             book[k] = ans.lstrip().rstrip()
 
     sys.stdout.write('\n --> GOT:\n')
 
-    for k, v in book.items():
-        if k.startswith('_'):
+    for k in Book.attribs:
+        if not book[k]:
             continue
-        p( '{:8} "{}"'.format(k,v) )
+        p( '{:8} "{}"'.format(k, book[k]) )
 
     ans = input('replace? y/N > ')
     if ans.lower().startswith('y'):
-        db.update({'_id':book['_id']},{'$set':book})
-        db.save()
+        db.update({'_id':book['_id']},{'$set':book.toDict()}).save()
         res = db.find({'_id':book['_id']})
-        d = res.data[0]
-        p( '"{}" updated'.format(d['title']) )
+        p( '"{}" updated'.format(res.data[0]['title']) )
     else:
         p('skipping')
 
