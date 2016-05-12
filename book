@@ -37,12 +37,20 @@ Usage:
   del <title|id>          delete a book
   rm <title|id> <list>    remove book from list
   listadd [name]          add a new list
+  listchange [name]       change list name
+  unlisted                show books not in any list
 
 If no command arguments are found:
   book will try to match one or more a list names and print the intersection of
   the books contained in those lists. Fail that, it will try to print any books
   with matching author or title.
 """)
+
+
+# object equal
+def objeq( x, y ):
+    unmatched = set(x.items()) ^ set(y.items())
+    return len(unmatched) == 0
 
 
 class Book:
@@ -95,6 +103,29 @@ class Book:
     def __setitem__(self, key, value):
         if key in self.attribs:
             self.__dict__[key] = value
+
+    def __contains__(self, key):
+        if key not in self.attribs:
+            return False
+        return True if self.__getattribute__(key) else False
+
+    def __len__(self):
+        length = 0
+        for key in self.attribs:
+            if self.__getattribute__(key):
+                length = length + 1
+        return length
+
+    def keys(self):
+        return self.attribs
+
+    def items(self):
+        a = []
+        for key in self.attribs:
+            val = self.__getattribute__(key)
+            if val:
+                a.append( {key:val} )
+        return a
 
     def insert( self, db ):
         if self.check_exists(db):
@@ -281,15 +312,21 @@ def edit_book(title, args):
         p('** error: book must be index or title')
         return
 
-    for k in Book.attribs[1:]:
+    for k in book.keys():
+        if k == '_id':
+            continue
         ans = input( '{:8} ["{}"] > '.format(k, book[k]))
         if ans:
             book[k] = ans.lstrip().rstrip()
 
-    sys.stdout.write('\n --> GOT:\n')
+    book2 = book_from_index_title( title )
+    if objeq( book.toDict(), book2.toDict() ):
+        p('no change')
+        return
 
-    for k in Book.attribs:
-        if not book[k]:
+    sys.stdout.write('\n--> CHANGED BOOK <--:\n')
+    for k in book.keys():
+        if k not in book:
             continue
         p( '{:8} "{}"'.format(k, book[k]) )
 
@@ -337,7 +374,7 @@ def rm_book_from_list(title, args):
     db.update({'_id':List['_id']}, {'$set':{'books':List['books']}}).save()
 
     ## report
-    p( 'removed "{}" from "{}"'.format(book['title'], List['name']) )
+    p( '"{}" removed from "{}"'.format(book['title'], List['name']) )
 
 def listadd(title, args):
     ## sanity check args
@@ -371,24 +408,69 @@ def listadd(title, args):
     p( 'create list: "{}"'.format(o['name']))
 
 
+def listchange(title, args):
+    if not title:
+        title = input('name > ')
+        if not title:
+            p('** error: what is the name of the list?')
+            return
+
+    List = list_from_index_name( title )
+    if not List:
+        p( '**error: list not found' )
+        return
+
+    orig = List['name']
+    name = input( 'name ["{}"] > '.format(List['name']) )
+    if name == orig:
+        p('no change')
+        return
+
+    db.update({'_t':'list', '_id':List['_id']}, {'$set':{'name':name}}).save()
+    p('list name change to "{}"'.format(name))
+
+
+def print_book( i, book, longprint, Lists ):
+    if longprint:
+        p(book.toString(index='{}:'.format(i+1), lists=Lists.data))
+    else:
+        p('{}: {}'.format((i+1), book.shortString()))
+
+def print_list( r, backwards, longprint, Lists ):
+    p('-' * 39)
+    p('+ books in "{}"'.format(r['name']))
+    p('-' * 39)
+    generator = reversed(r['books']) if backwards else r['books']
+    for i, b in enumerate( generator ):
+        bb = db.find({'_id':b['_id']})
+        if bb.count():
+            bk = Book(**bb.data[0])
+            print_book( i, bk, longprint, Lists )
+
+
+def show_unlisted(title, args):
+    backwards = True if '-r' in title or '-r' in args else False
+    longprint = True if '-l' in title or '-l' in args else False
+
+    lists = db.find({"_t":"list"})
+    ids = {""}
+    for List in lists.data:
+        for b in List['books']:
+            ids.add(b['_id'])
+
+    books = db.find({'_t':'book'})
+
+    for b in books.data:
+        if b['_id'] in ids:
+            books.data.remove(b)
+
+    iterate = reversed(books.data) if backwards else books.data
+    for i, b in enumerate(iterate):
+        bk = Book(**b)
+        print_book( i, bk, longprint, lists )
+
+
 def default_behavior(op, title, args):
-
-    def print_book( i, book, longprint, Lists ):
-        if longprint:
-            p(book.toString(index='{}:'.format(i+1), lists=Lists.data))
-        else:
-            p('{}: {}'.format((i+1), book.shortString()))
-
-    def print_list( r, backwards, longprint, Lists ):
-        p('-' * 39)
-        p('+ books in "{}"'.format(r['name']))
-        p('-' * 39)
-        generator = reversed(r['books']) if backwards else r['books']
-        for i, b in enumerate( generator ):
-            bb = db.find({'_id':b['_id']})
-            if bb.count():
-                bk = Book(**bb.data[0])
-                print_book( i, bk, longprint, Lists )
 
     backwards = True if '-r' in title or '-r' in args else False
     longprint = True if '-l' in title or '-l' in args else False
@@ -515,6 +597,10 @@ elif op == 'rm':
     rm_book_from_list(title, args)
 elif op == 'listadd':
     listadd(title, args)
+elif op == 'listchange':
+    listchange(title, args)
+elif op == 'unlisted':
+    show_unlisted(title, args)
 elif op:
     default_behavior(op, title, args)
 else:
