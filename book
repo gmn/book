@@ -39,6 +39,7 @@ Usage:
   listadd [name]          add a new list
   listchange [name]       change list name
   unlisted                show books not in any list
+  finished                show books that are finished
 
 If no command arguments are found:
   book will try to match one or more a list names and print the intersection of
@@ -459,13 +460,22 @@ def show_unlisted(title, args):
             ids.add(b['_id'])
 
     books = db.find({'_t':'book'})
+    unlisted = [b for b in books.data if b['_id'] not in ids]
 
-    for b in books.data:
-        if b['_id'] in ids:
-            books.data.remove(b)
+    iterate_over = reversed(unlisted) if backwards else unlisted
+    for i, b in enumerate(iterate_over):
+        bk = Book(**b)
+        print_book( i, bk, longprint, lists )
 
-    iterate = reversed(books.data) if backwards else books.data
-    for i, b in enumerate(iterate):
+
+def show_finished(title, args):
+    backwards = True if '-r' in title or '-r' in args else False
+    longprint = True if '-l' in title or '-l' in args else False
+
+    lists = db.find({'_t':'list'})
+    books = db.find({'_t':'book', 'finished':{'$exists':True}})
+    iterate_over = reversed(books.data) if backwards else books.data
+    for i, b in enumerate(iterate_over):
         bk = Book(**b)
         print_book( i, bk, longprint, lists )
 
@@ -601,6 +611,8 @@ elif op == 'listchange':
     listchange(title, args)
 elif op == 'unlisted':
     show_unlisted(title, args)
+elif op == 'finished':
+    show_finished(title, args)
 elif op:
     default_behavior(op, title, args)
 else:
