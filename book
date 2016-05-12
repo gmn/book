@@ -423,8 +423,8 @@ def listchange(title, args):
 
     orig = List['name']
     name = input( 'name ["{}"] > '.format(List['name']) )
-    if name == orig:
-        p('no change')
+    if not name or name == orig:
+        p('not changed')
         return
 
     db.update({'_t':'list', '_id':List['_id']}, {'$set':{'name':name}}).save()
