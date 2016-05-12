@@ -284,7 +284,7 @@ def add_book_to_list( title, args ):
     List['books'].append({'_id':book_id})
     db.update({'_t':'list','name':List['name']},{'$set':{'books':List['books']}})
     db.save()
-    p('adding "{}" to "{}"'.format(book['title'], List['name']) )
+    p('"{}" added to "{}"'.format(book['title'], List['name']) )
 
 def finish_book(title, args):
     # BOOk
