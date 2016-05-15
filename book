@@ -48,6 +48,33 @@ If no command arguments are found:
 """)
 
 
+def print_book( i, book, longprint, Lists ):
+    if longprint:
+        p(book.toString(index='{}:'.format(i+1), lists=Lists.data))
+    else:
+        p('{}: {}'.format((i+1), book.shortString()))
+
+def print_list( r, backwards, longprint, Lists ):
+    p('-' * 39)
+    p('+ books in "{}"'.format(r['name']))
+    p('-' * 39)
+    generator = reversed(r['books']) if backwards else r['books']
+    for i, b in enumerate( generator ):
+        bb = db.find({'_id':b['_id']})
+        if bb.count():
+            bk = Book(**bb.data[0])
+            print_book( i, bk, longprint, Lists )
+
+def show_all_books( title, args ):
+    order = -1 if title == '-r' or '-r' in args else 1
+    res = db.find({'_t':'book'}).sort({'added':order})
+    lists = db.find({'_t':'list'}).sort({'name':1})
+    longprint = True if title == '-l' or '-l' in args else False
+
+    for index, book in ((i, Book(**r)) for i, r in enumerate(res.data)):
+        print_book( index, book, longprint, lists )
+
+
 # object equal
 def objeq( x, y ):
     unmatched = set(x.items()) ^ set(y.items())
@@ -433,24 +460,6 @@ def listchange(title, args):
     p('list name change to "{}"'.format(name))
 
 
-def print_book( i, book, longprint, Lists ):
-    if longprint:
-        p(book.toString(index='{}:'.format(i+1), lists=Lists.data))
-    else:
-        p('{}: {}'.format((i+1), book.shortString()))
-
-def print_list( r, backwards, longprint, Lists ):
-    p('-' * 39)
-    p('+ books in "{}"'.format(r['name']))
-    p('-' * 39)
-    generator = reversed(r['books']) if backwards else r['books']
-    for i, b in enumerate( generator ):
-        bb = db.find({'_id':b['_id']})
-        if bb.count():
-            bk = Book(**bb.data[0])
-            print_book( i, bk, longprint, Lists )
-
-
 def show_unlisted(title, args):
     backwards = True if '-r' in title or '-r' in args else False
     longprint = True if '-l' in title or '-l' in args else False
@@ -578,15 +587,7 @@ if op == '-h' or op == '--help':
     print_help()
 # show all books
 elif op == 'books' or op == '-l':
-    order = -1 if title == '-r' or '-r' in args else 1
-    res = db.find({'_t':'book'}).sort({'added':order})
-    for i, r in enumerate(res.data):
-        b = Book(**r)
-        if title == '-l' or '-l' in args:
-            lists = db.find({'_t':'list'}).sort({'name':1})
-            p(b.toString(index='{}:'.format(i+1), lists=lists.data))
-        else:
-            p('{}: {}'.format((i+1),b.shortString()))
+    show_all_books( title, args )
 # new book
 elif op == 'new' or op == '-n':
     new_book( title, args )
