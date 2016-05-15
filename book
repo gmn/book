@@ -269,22 +269,24 @@ def add_book_to_list( title, args ):
         return
     book_id = book['_id']
 
-    # LIST
-    List = list_from_index_name( ' '.join(args) )
-    if not List:
-        p('** error: list must be index or name')
-        return
-
-    # see if the book is already in List
-    for l in List['books']:
-        if l['_id'] == book_id:
-            p('** error: "{}" is already in list "{}"'.format(book['title'],List['name']))
+    # FOR LISTS
+    for arg in args:
+        # LIST
+        List = list_from_index_name( arg )
+        if not List:
+            p('** error: list must be index or name')
             return
 
-    List['books'].append({'_id':book_id})
-    db.update({'_t':'list','name':List['name']},{'$set':{'books':List['books']}})
-    db.save()
-    p('"{}" added to "{}"'.format(book['title'], List['name']) )
+        # see if the book is already in List
+        for l in List['books']:
+            if l['_id'] == book_id:
+                p('** warning: "{}" is already in list "{}"'.format(book['title'],List['name']))
+                continue
+
+        List['books'].append({'_id':book_id})
+        db.update({'_t':'list','name':List['name']},{'$set':{'books':List['books']}})
+        db.save()
+        p('"{}" added to "{}"'.format(book['title'], List['name']) )
 
 def finish_book(title, args):
     # BOOk
@@ -348,7 +350,7 @@ def delete_book(title):
     db.remove({'_t':'book', '_id':book['_id']})
     res = db.find({'_id':book['_id']})
     if res.count() == 0:
-        p( book['title'] + ' removed successfully' )
+        p( '"{}" removed successfully'.format( book['title'] ) )
     db.save()
 
 def rm_book_from_list(title, args):
