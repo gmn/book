@@ -551,26 +551,27 @@ def default_behavior(op, title, args):
         for r in list_of_lists:
             print_list( r, backwards, longprint, Lists )
 
-    # or try to match titles or authors
+    # or
     else:
-        match = re.compile('.*{}.*'.format(op), re.IGNORECASE)
-        order = -1 if backwards else 1
-        res = db.find({'_t':'book', '$or':[{'title':match},{'author':match}]}).sort({'_id':order})
-        for i, bk in enumerate([Book(**b) for b in res.data]):
-            print_book( i, bk, longprint, Lists )
+        # look for list number, or book number
+        List = list_from_index_name( op )
+        if List:
+            print_list( List, backwards, longprint, Lists )
+        else:
+            book = book_from_index_title( op )
+            if book:
+                print_book( 0, book, longprint, Lists )
 
-        # or look for list number, or book number
-        if not res.data:
-            List = list_from_index_name( op )
-            if List:
-                print_list( List, backwards, longprint, Lists )
+            # or, fail all that,
             else:
-                book = book_from_index_title( op )
-                if book:
-                    print_book( 0, book, longprint, Lists )
+                # try to match titles or authors
+                match = re.compile('.*{}.*'.format(op), re.IGNORECASE)
+                order = -1 if backwards else 1
+                res = db.find({'_t':'book', '$or':[{'title':match},{'author':match}]}).sort({'_id':order})
+                for i, bk in enumerate([Book(**b) for b in res.data]):
+                    print_book( i, bk, longprint, Lists )
 
-                # or, fail all that, print help
-                else:
+                if not res.data:
                     sys.stdout.write( '\n        **************' )
                     sys.stdout.write( '\n        ** no match **' )
                     sys.stdout.write( '\n        **************' )
