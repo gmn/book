@@ -435,7 +435,9 @@ def listadd(title, args):
     db.insert(o).save()
 
     ## report
-    p( 'create list: "{}"'.format(o['name']))
+    r = db.find({'_t':'list','name':o['name']})
+    if r.data:
+        p( 'list created: "[{}] {}"'.format(res.data[0]['_id'],res.data[0]['name']) )
 
 
 def listchange(title, args):
