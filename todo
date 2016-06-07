@@ -1,0 +1,267 @@
+#!/usr/bin/env python3
+
+"""
+this is an app to keep track of my endlessly evolving todolists
+
+Item:
+    t: item
+    title:
+    comments:
+    added:
+    finished:
+
+List:
+    t: list
+    name:
+    comments:
+    items: []
+
+- support for chained dependencies, meaning:
+    - buy a house
+    - if I buy a house, buy a sofa
+    - once we have a sofa, buy a dog
+
+    one isn't relative until its precursor is accomplished: Triggers?
+"""
+
+import sys, os, json, re, random
+
+TODO_PATH = '/home/gnaughto/Private/logs/databases/todo.json'
+QUERYABLE_PATH = '/home/gnaughto/code/pyqueryable'
+
+sys.path.append(QUERYABLE_PATH)
+from Queryable import db_object
+
+# globals
+p    = lambda X: print( str(X) )
+db   = db_object(path=TODO_PATH, jsonarg={'sort_keys':True,'indent':2}).load()
+
+
+def print_help():
+    p("""Usage:
+  --help, -h              show this help
+  all                     show all items
+  new                     add a new item
+  add                     add a item to a list
+  lists                   show all lists
+  finish                  mark an  item finished
+  [list name][all]        show items in a list, or all items in all lists
+""")
+
+
+class Item:
+    # dates
+    title = ''
+    added = ''
+    finished = ''
+    comments = ''
+    priority = 1        # default: 1
+    index = 0           # 0 is no index, not set
+    t = ''
+
+    def __init__(self,title=None,comments=None,priority=None,index=None,_t=None,_id=None, added=None, finished=None):
+        if title:
+            self.title = title
+        if priority:
+            self.priority = priority
+        if index:
+            self.index = index
+        if comments:
+            self.comments = comments
+        if _t:
+            self._t = _t
+        if _id:
+            self._id = _id
+        if added:
+            self.added = added
+
+    def insert( self, db ):
+        if self.check_exists(db):
+            return False
+        obj = {'_t':'item'}
+        for i in ('title'):
+            e = self.__getattribute__(i)
+            if e:
+                obj[i] = e
+        db.insert(obj)
+        return True
+
+    def check_exists( self, db ):
+        obj = {'_t':'item'}
+        for i in ('title'):
+            e = self.__getattribute__(i)
+            if e:
+                obj[i] = e
+        if not obj.get('title'): # not exist or unset. must have title.
+            return False
+        res = db.find(obj)
+        return res.count() == 1
+
+    def toString(self, index=' -'):
+        s = ''
+        for i in ('title','added','finished','comments'):
+            e = self.__getattribute__(i)
+            if e:
+                s = '{}{} {:8s}: {}\n'.format(s, (index if i=='title' else ' -'), i, e)
+        return s
+
+
+def new_item( title, args ):
+    obj = {'_t':'item','title':title,'added':'now()'}
+    for i in ('title','comments'):
+        if i == 'title' and title:
+            continue
+        rn = input('{} > '.format(i))
+        if rn:
+            obj[i] = rn
+
+    b = Item(**obj)
+    if not b.title:
+        p( 'item must have at least a title ')
+        return
+    if not b.insert(db):
+        p('"{}" already exists'.format(title))
+        return
+    db.save()
+
+    res = db.find({'title':title})
+    if res.count() > 0:
+        c = Item(**res.data[0])
+        p('Adding:\n{}'.format(c.toString()) )
+
+
+def add_item_to_list( title, args ):
+    if not title:
+        p( 'must provide a title')
+        return
+    if not args:
+        p( 'must provide a list')
+        return
+
+    item_id = -1   # int
+    List = {}   # dict
+
+    # BOOK
+    try:
+        index = int(title)
+        res = db.find({'_t':'item'}).sort({'added':-1})
+        item = res.data[index-1]
+        item_id = item['_id']
+    except:
+        res = db.find({'_t':'item','title':title})
+        if res.count() != 1:
+            raise Exception('Error: bad argument, Book may either be index or title')
+            return
+        item = res.data[0]
+        item_id = res.data[0]['_id']
+
+    # LIST
+    try:
+        index = int(args[0])
+        res = db.find({'_t':'list'}).sort({'name':1})
+        List = res.data[index-1]
+    except:
+        # see if argument is a list's name
+        res = db.find({'_t':'list','name':' '.join(args)})
+        if res.count() != 1:
+            raise Exception('Error: bad argument, list may either be index or name')
+            return
+        List = res.data[0]
+
+    # see if the item is already in List
+    for l in List['items']:
+        if l['_id'] == item_id:
+            p('"{}" is already in list "{}"'.format(item['title'],List['name']))
+            return
+
+    List['items'].append({'_id':item_id})
+    db.update({'_t':'list','name':List['name']},{'$set':{'items':List['items']}})
+    db.save()
+    p('adding "{}" to "{}"'.format(item['title'], List['name']) )
+
+
+def finish_item(title):
+    try:
+        index = int(title)
+        res = db.find({'_t':'item'}).sort({'added':-1})
+        item = res.data[index-1]
+        item_id = item['_id']
+    except:
+        res = db.find({'_t':'item','title':title})
+        if res.count() != 1:
+            raise Exception('Error: bad argument, Book may either be index or title')
+            return
+        item = res.data[0]
+        item_id = res.data[0]['_id']
+
+    if 'finished' in item:
+        p('"{}" already marked finished'.format(item['title']))
+        return
+
+    db.update({'_id':item_id},{'$set':{'finished':'now()'}})
+    db.save()
+    res = db.find({'_id':item_id})
+    d = res.data[0]
+    p( '"{}" marked finished on "{}"'.format(d['title'],d['finished']) )
+
+
+##
+#
+# entry point
+#
+#
+
+# arguments
+op   = sys.argv[1:2]
+op = '' if len(op) == 0 else op.pop().lower()
+title = sys.argv[2:3]
+title = '' if len(title) == 0 else title.pop()
+args = sys.argv[3:]
+
+
+if op == '-h' or op == '--help':
+    print_help()
+
+# show all items
+elif op == 'all':
+    res = db.find({'_t':'item'}).sort({'added':-1})
+    for i, r in enumerate(res.data):
+        b = Item(**r)
+        p(b.toString(index='{}:'.format(i+1)))
+
+# new item
+elif op == 'new':
+    new_item( title, args )
+
+# add item to list
+elif op == 'add':
+    add_item_to_list( title, args )
+
+# show lists
+elif op == 'lists':
+    res = db.find({'_t':'list'}).sort({'name':1})
+    for i, r in enumerate(res.data):
+        p('{}: {}'.format( i+1, r['name'] ) )
+
+# mark item finished
+elif op == 'finish':
+    finish_item(title)
+
+else:
+    # if op is a list name, show the items in the list
+    res = db.find({'_t':'list'})
+    for r in res.data:
+        if r['name'] == op.lower() or op.lower() == 'all': # found it
+            p('-' * 39)
+            p('+ items in "{}"'.format(r['name']))
+            p('-' * 39)
+            for i, b in enumerate( r['items'] ):
+                bb = db.find({'_id':b['_id']}).sort({'_id':1})
+                if bb.count():
+                    bk = Item(**bb.data[0])
+                    p(bk.toString(index='{}:'.format(i+1)))
+            if op.lower() != 'all':
+                break
+
+    if not op and not title:
+        print_help()
