@@ -1,0 +1,38 @@
+
+TODO
+------------
+todo (no arguments)     - prints the items in 'now'|'today' list
+todo arg{non-flag}      - find matching list
+todo --flag
+
+C) write a todolist management tool in python, that has
+    - commands for shifting priority,
+    - inserting items at random spots in a hierarchy and moving them around,
+    - deprecating, activating, deactivating, and grouping easily.
+    - So I can write:
+
+        'todo home'
+        'todo work',
+        'todo'          -- by itself prints default list: "now".
+                            and "todo --help for help"
+        'todo all'      --shows all items from all categories.
+
+        'todo programming'  --keep track of my programming related tasks,
+
+
+        'todo startup' or 'todo business' to keep track of business ideas,
+
+        'todo writing'
+
+        todo startup programming   --items in ( programming ^ startup ) intersection
+
+        todo coding     -- coding is alias for programming
+
+
+A) hacking up a high-quality C++ library of functions and boiler-plate,
+    STL allocator, string class, etc.
+
+B) crypto library hacking. Learn and implement some of the protocols.
+    See if for instance I could write Axolotl in CPP.
+
+

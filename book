@@ -91,7 +91,8 @@ class Book:
     comments = ''
     rating = ''
     cost = ''
-    attribs = ('_id','title','author','added','finished','year','comments','rating','cost')
+    times_read = 0
+    attribs = ('_id','title','author','added','finished','year','comments','rating','cost','times_read')
 
     def toDict(self):
         obj = {}
@@ -103,7 +104,7 @@ class Book:
                 obj[key] = val
         return obj
 
-    def __init__(self,_id=None,title=None,author=None,added=None,finished=None,year=None,comments=None,rating=None,cost=None,_t=None):
+    def __init__(self,_id=None,title=None,author=None,added=None,finished=None,year=None,comments=None,rating=None,cost=None,times_read=None,_t=None):
         if _id:
             self._id = _id
         if title:
@@ -122,6 +123,8 @@ class Book:
             self.rating = rating
         if cost:
             self.cost = cost
+        if times_read:
+            self.times_read = times_read
 
     def __getitem__(self, key):
         if key not in self.attribs:
@@ -182,14 +185,14 @@ class Book:
         for i in Book.attribs:
             e = self.__getattribute__(i)
             if e:
-                s = '{}{} {:8s}: {}\n'.format(s, (index if i=='_id' else ' -'), i, e)
+                s = '{}{} {:11s}: {}\n'.format(s, (index if i=='_id' else ' -'), i, e)
         if lists and self._id is not None:
             list_names = []
             for lst in lists:
                 if self._id in [ b['_id'] for b in lst['books'] ]:
                     list_names.append(lst['name'])
             if list_names:
-                s = '{} - memberof: {}\n'.format(s, ', '.join(list_names))
+                s = '{} - member of  : {}\n'.format(s, ', '.join(list_names))
 
         return s
 
@@ -329,7 +332,7 @@ def finish_book(title, args):
             return
         p('-f set. forcing finish again')
 
-    db.update({'_id':book_id},{'$set':{'finished':'now()'}})
+    db.update({'_id':book_id},{'$set':{'finished':'now()','times_read':book['times_read']+1}})
     db.save()
     res = db.find({'_id':book_id})
     d = res.data[0]
