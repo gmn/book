@@ -193,7 +193,6 @@ class Book:
                     list_names.append(lst['name'])
             if list_names:
                 s = '{} - member of  : {}\n'.format(s, ', '.join(list_names))
-
         return s
 
     def shortString(self):

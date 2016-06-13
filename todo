@@ -37,16 +37,38 @@ p    = lambda X: print( str(X) )
 db   = db_object(path=TODO_PATH, jsonarg={'sort_keys':True,'indent':2}).load()
 
 
-def print_help():
-    p("""Usage:
-  --help, -h              show this help
-  all                     show all items
-  new                     add a new item
-  add                     add a item to a list
-  lists                   show all lists
-  finish                  mark an  item finished
-  [list name][all]        show items in a list, or all items in all lists
-""")
+
+
+def print_item( i, item, longprint, Lists ):
+    if longprint:
+        p(item.toString(index='{}:'.format(i+1), lists=Lists.data))
+    else:
+        p('{}: {}'.format((i+1), item.shortString()))
+
+def print_list( r, backwards, longprint, Lists ):
+    p('-' * 39)
+    p('+ items in "{}"'.format(r['name']))
+    p('-' * 39)
+    generator = reversed(r['items']) if backwards else r['items']
+    for i, b in enumerate( generator ):
+        bb = db.find({'_id':b['_id']})
+        if bb.count():
+            bk = Iook(**bb.data[0])
+            print_item( i, bk, longprint, Lists )
+
+def show_all_items( title, args ):
+    order = -1 if title == '-r' or '-r' in args else 1
+    res = db.find({'_t':'item'}).sort({'added':order})
+    lists = db.find({'_t':'list'}).sort({'name':1})
+    longprint = True if title == '-l' or '-l' in args else False
+
+    for index, item in ((i, Item(**r)) for i, r in enumerate(res.data)):
+        print_item( index, item, longprint, lists )
+
+# object equal
+def objeq( x, y ):
+    unmatched = set(x.items()) ^ set(y.items())
+    return len(unmatched) == 0
 
 
 class Item:
@@ -57,29 +79,71 @@ class Item:
     comments = ''
     priority = 1        # default: 1
     index = 0           # 0 is no index, not set
-    t = ''
+    _t = ''
+    _id = ''
+    attribs = ('_id', 'title', 'added', 'finished', 'comments', 'priority', 'index')
 
-    def __init__(self,title=None,comments=None,priority=None,index=None,_t=None,_id=None, added=None, finished=None):
+    def __init__(self,title=None, added=None, finished=None, comments=None, priority=None,index=None,_t=None,_id=None):
         if title:
             self.title = title
+        if added:
+            self.added = added
+        if finished:
+            self.finished = finished
+        if comments:
+            self.comments = comments
         if priority:
             self.priority = priority
         if index:
             self.index = index
-        if comments:
-            self.comments = comments
         if _t:
             self._t = _t
         if _id:
             self._id = _id
-        if added:
-            self.added = added
 
+    #
+    # dictionary-like interfaces
+    #
+    def __getitem__(self, key):
+        if key not in self.attribs:
+            return None
+        return self.__getattribute__(key)
+
+    def __setitem__(self, key, value):
+        if key in self.attribs:
+            self.__dict__[key] = value
+
+    def __contains__(self, key):
+        if key not in self.attribs:
+            return False
+        return True if self.__getattribute__(key) else False
+
+    def __len__(self):
+        length = 0
+        for key in self.attribs:
+            if self.__getattribute__(key):
+                length = length + 1
+        return length
+
+    def keys(self):
+        return self.attribs
+
+    def items(self):
+        a = []
+        for key in self.attribs:
+            val = self.__getattribute__(key)
+            if val:
+                a.append( {key:val} )
+        return a
+
+    #
+    # accessors
+    #
     def insert( self, db ):
         if self.check_exists(db):
             return False
         obj = {'_t':'item'}
-        for i in ('title'):
+        for i in self.attribs[1:]:
             e = self.__getattribute__(i)
             if e:
                 obj[i] = e
@@ -97,12 +161,28 @@ class Item:
         res = db.find(obj)
         return res.count() == 1
 
-    def toString(self, index=' -'):
+    def toString(self, index=' -', lists=[]):
         s = ''
-        for i in ('title','added','finished','comments'):
+        for i in Item.attribs:
             e = self.__getattribute__(i)
             if e:
-                s = '{}{} {:8s}: {}\n'.format(s, (index if i=='title' else ' -'), i, e)
+                s = '{}{} {:11s}: {}\n'.format(s, (index if i=='_id' else ' -'), i, e)
+        if lists and self._id is not None:
+            list_names = []
+            for lst in lists:
+                if self._id in [ b['_id'] for b in lst['items'] ]:
+                    list_names.append(lst['name'])
+            if list_names:
+                s = '{} - member of  : {}\n'.format(s, ', '.join(list_names))
+        return s
+
+    def shortString(self):
+        s = '[{}]'.format(self._id) if self._id else ''
+        s = '{} {}'.format(s, self.title)
+#        for i in ('author','year'):
+#            e = self.__getattribute__(i)
+#            if e:
+#                s = '{}{}'.format( s, (' - '+e) if s else e )
         return s
 
 
@@ -141,7 +221,7 @@ def add_item_to_list( title, args ):
     item_id = -1   # int
     List = {}   # dict
 
-    # BOOK
+    # ITEM
     try:
         index = int(title)
         res = db.find({'_t':'item'}).sort({'added':-1})
@@ -150,7 +230,7 @@ def add_item_to_list( title, args ):
     except:
         res = db.find({'_t':'item','title':title})
         if res.count() != 1:
-            raise Exception('Error: bad argument, Book may either be index or title')
+            raise Exception('Error: bad argument, Item may either be index or title')
             return
         item = res.data[0]
         item_id = res.data[0]['_id']
@@ -189,7 +269,7 @@ def finish_item(title):
     except:
         res = db.find({'_t':'item','title':title})
         if res.count() != 1:
-            raise Exception('Error: bad argument, Book may either be index or title')
+            raise Exception('Error: bad argument, Item may either be index or title')
             return
         item = res.data[0]
         item_id = res.data[0]['_id']
@@ -205,11 +285,43 @@ def finish_item(title):
     p( '"{}" marked finished on "{}"'.format(d['title'],d['finished']) )
 
 
-##
+def default_action(op, title, args):
+    # if op is a list name, show the items in the list
+    res = db.find({'_t':'list'})
+    for r in res.data:
+        if r['name'] == op.lower() or op.lower() == 'all': # found it
+            p('-' * 39)
+            p('+ items in "{}"'.format(r['name']))
+            p('-' * 39)
+            for i, b in enumerate( r['items'] ):
+                bb = db.find({'_id':b['_id']}).sort({'_id':1})
+                if bb.count():
+                    bk = Item(**bb.data[0])
+                    p(bk.toString(index='{}:'.format(i+1)))
+            if op.lower() != 'all':
+                break
+
+    if not op and not title:
+        print_help()
+
+
+def print_help():
+    p("""Usage:
+  --help, -h              show this help
+  all                     show all items
+  new                     add a new item
+  add                     add a item to a list
+  lists                   show all lists
+  finish                  mark an  item finished
+  [list name][all]        show items in a list, or all items in all lists
+""")
+
+
+##############################################
 #
 # entry point
 #
-#
+##############################################
 
 # arguments
 op   = sys.argv[1:2]
@@ -224,10 +336,7 @@ if op == '-h' or op == '--help':
 
 # show all items
 elif op == 'all':
-    res = db.find({'_t':'item'}).sort({'added':-1})
-    for i, r in enumerate(res.data):
-        b = Item(**r)
-        p(b.toString(index='{}:'.format(i+1)))
+    show_all_items( title, args )
 
 # new item
 elif op == 'new':
@@ -248,20 +357,5 @@ elif op == 'finish':
     finish_item(title)
 
 else:
-    # if op is a list name, show the items in the list
-    res = db.find({'_t':'list'})
-    for r in res.data:
-        if r['name'] == op.lower() or op.lower() == 'all': # found it
-            p('-' * 39)
-            p('+ items in "{}"'.format(r['name']))
-            p('-' * 39)
-            for i, b in enumerate( r['items'] ):
-                bb = db.find({'_id':b['_id']}).sort({'_id':1})
-                if bb.count():
-                    bk = Item(**bb.data[0])
-                    p(bk.toString(index='{}:'.format(i+1)))
-            if op.lower() != 'all':
-                break
+    default_action(op, title, args)
 
-    if not op and not title:
-        print_help()
