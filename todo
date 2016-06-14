@@ -298,6 +298,7 @@ def finish_item(title):
 
 
 def default_action(op, title, args):
+
     # if op is a list name, show the items in the list
     if not op and not title:
         f = config.get('default_action')
@@ -313,19 +314,89 @@ def default_action(op, title, args):
             p('no default action set')
         return
 
-    res = db.find({'_t':'list'})
-    for r in res.data:
-        if r['name'] == op.lower() or op.lower() == 'all': # found it
-            p('-' * 39)
-            p('+ items in "{}"'.format(r['name']))
-            p('-' * 39)
-            for i, b in enumerate( r['items'] ):
-                bb = db.find({'_id':b['_id']}).sort({'_id':1})
-                if bb.count():
-                    bk = Item(**bb.data[0])
-                    p(bk.toString(index='{}:'.format(i+1)))
-            if op.lower() != 'all':
-                break
+
+    backwards = True if '-r' in title or '-r' in args else False
+    longprint = True if '-l' in title or '-l' in args else False
+
+    # if op is a list name, show the items in the list, optionally combining multiple lists
+    Lists = db.find({'_t':'list'})
+    sets = []
+    names = []
+    for r in Lists.data:
+        if r['name'] == op.lower():
+            ids = set()
+            sets.append(ids)
+            names.append(r['name'])
+            for b in r['items']:
+                ids.add(b['_id'])
+        elif r['name'] == title:
+            ids = set()
+            sets.append(ids)
+            names.append(r['name'])
+            for b in r['items']:
+                ids.add(b['_id'])
+        elif r['name'] in args:
+            for a in args:
+                if r['name'] == a:
+                    ids = set()
+                    sets.append(ids)
+                    names.append(r['name'])
+                    for b in r['items']:
+                        ids.add(b['_id'])
+
+    ids = set()
+    if title == '|' or '|' in args:
+        operator = ' | '
+        for s in sets:
+            ids = ids.union(s)
+    else:
+        operator = ' & '
+        if sets:
+            ids = sets[0]
+            for i in range(1, len(sets)):
+                ids = ids.intersection( sets[i] )
+
+    if ids or names:
+        p('-' * 39)
+        p('+ items in "{}"'.format(operator.join(names)))
+        p('-' * 39)
+        generator = reversed(sorted(ids)) if backwards else sorted(ids)
+        for i, _id in enumerate( generator ):
+            bb = db.find({'_id':_id})
+            if bb.count():
+                bk = Book(**bb.data[0])
+                print_item( i, bk, longprint, Lists )
+
+    # or show all lists
+    elif op.lower() == 'all':
+        list_of_lists = reversed(Lists.data) if backwards else Lists.data
+        for r in list_of_lists:
+            print_list( r, backwards, longprint, Lists )
+    # or
+    else:
+        # look for list number, or item number
+        List = list_from_index_name( op )
+        if List:
+            print_list( List, backwards, longprint, Lists )
+        else:
+            item = item_from_index_title( op )
+            if item:
+                print_item( 0, item, longprint, Lists )
+
+            # or, fail all that,
+            else:
+                # try to match titles or authors
+                match = re.compile('.*{}.*'.format(op), re.IGNORECASE)
+                order = -1 if backwards else 1
+                res = db.find({'_t':'item', '$or':[{'title':match},{'author':match}]}).sort({'_id':order})
+                for i, bk in enumerate([Book(**b) for b in res.data]):
+                    print_item( i, bk, longprint, Lists )
+
+                if not res.data:
+                    sys.stdout.write( '\n        **************' )
+                    sys.stdout.write( '\n        ** no match **' )
+                    sys.stdout.write( '\n        **************' )
+                    print_help()
 
 
 def listadd(title, args):
