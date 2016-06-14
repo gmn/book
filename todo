@@ -35,8 +35,7 @@ from Queryable import db_object
 # globals
 p    = lambda X: print( str(X) )
 db   = db_object(path=TODO_PATH, jsonarg={'sort_keys':True,'indent':2}).load()
-
-
+config = {}
 
 
 def print_item( i, item, longprint, Lists ):
@@ -57,18 +56,52 @@ def print_list( r, backwards, longprint, Lists ):
             print_item( i, bk, longprint, Lists )
 
 def show_all_items( title, args ):
-    order = -1 if title == '-r' or '-r' in args else 1
-    res = db.find({'_t':'item'}).sort({'added':order})
+    order = 1 if title == '-r' or '-r' in args else -1
+    res = db.find({'_t':'item','finished':{'$exists':False}}).sort({'added':order})
     lists = db.find({'_t':'list'}).sort({'name':1})
     longprint = True if title == '-l' or '-l' in args else False
 
-    for index, item in ((i, Item(**r)) for i, r in enumerate(res.data)):
+    for index, item in ((i, Item(**r)) for i, r in enumerate(res.data[:LIST_LIMIT])):
         print_item( index, item, longprint, lists )
 
 # object equal
 def objeq( x, y ):
     unmatched = set(x.items()) ^ set(y.items())
     return len(unmatched) == 0
+
+def item_from_index_title( title ):
+    def from_title( title ):
+        res = db.find({'_t':'item', 'title':title})
+        if res.count() != 1:
+            return False
+        return Item( **res.data[0] )
+
+    try:
+        index = int(title)
+    except:
+        return from_title( title )
+
+    res = db.find({'_t':'item', '_id':index})
+    if res.count() != 1:
+        return from_title( title )
+    return Item( **res.data[0] )
+
+def list_from_index_name( name ):
+    def from_name( name ):
+        res = db.find({'_t':'list', 'name':name})
+        if res.count() != 1:
+            return False
+        return res.data[0]
+
+    try:
+        index = int(name)           # try to cast it
+    except:
+        return from_name( name )    # if not must be name or nothing
+
+    res = db.find({'_t':'list', '_id':index})
+    if res.count() != 1:
+        return from_name( name )
+    return res.data[0]
 
 
 class Item:
@@ -77,13 +110,12 @@ class Item:
     added = ''
     finished = ''
     comments = ''
-    priority = 1        # default: 1
     index = 0           # 0 is no index, not set
     _t = ''
     _id = ''
-    attribs = ('_id', 'title', 'added', 'finished', 'comments', 'priority', 'index')
+    attribs = ('_id', 'title', 'added', 'finished', 'comments', 'index')
 
-    def __init__(self,title=None, added=None, finished=None, comments=None, priority=None,index=None,_t=None,_id=None):
+    def __init__(self,title=None, added=None, finished=None, comments=None, index=None,_t=None,_id=None):
         if title:
             self.title = title
         if added:
@@ -92,8 +124,6 @@ class Item:
             self.finished = finished
         if comments:
             self.comments = comments
-        if priority:
-            self.priority = priority
         if index:
             self.index = index
         if _t:
@@ -152,7 +182,7 @@ class Item:
 
     def check_exists( self, db ):
         obj = {'_t':'item'}
-        for i in ('title'):
+        for i in ['title']:
             e = self.__getattribute__(i)
             if e:
                 obj[i] = e
@@ -170,7 +200,7 @@ class Item:
         if lists and self._id is not None:
             list_names = []
             for lst in lists:
-                if self._id in [ b['_id'] for b in lst['items'] ]:
+                if self._id in lst['items']:
                     list_names.append(lst['name'])
             if list_names:
                 s = '{} - member of  : {}\n'.format(s, ', '.join(list_names))
@@ -188,8 +218,11 @@ class Item:
 
 def new_item( title, args ):
     obj = {'_t':'item','title':title,'added':'now()'}
-    for i in ('title','comments'):
-        if i == 'title' and title:
+    comments = False
+    if args:
+        obj['comments'] = comments = args[0]
+    for i in ['title','comments']:
+        if (i == 'title' and title) or (i == 'comments' and comments):
             continue
         rn = input('{} > '.format(i))
         if rn:
@@ -222,59 +255,38 @@ def add_item_to_list( title, args ):
     List = {}   # dict
 
     # ITEM
-    try:
-        index = int(title)
-        res = db.find({'_t':'item'}).sort({'added':-1})
-        item = res.data[index-1]
-        item_id = item['_id']
-    except:
-        res = db.find({'_t':'item','title':title})
-        if res.count() != 1:
-            raise Exception('Error: bad argument, Item may either be index or title')
-            return
-        item = res.data[0]
-        item_id = res.data[0]['_id']
+    item = item_from_index_title( title )
+    if not item:
+        p('** error: item must be index or title')
+        return
+    item_id = item['_id']
 
-    # LIST
-    try:
-        index = int(args[0])
-        res = db.find({'_t':'list'}).sort({'name':1})
-        List = res.data[index-1]
-    except:
-        # see if argument is a list's name
-        res = db.find({'_t':'list','name':' '.join(args)})
-        if res.count() != 1:
-            raise Exception('Error: bad argument, list may either be index or name')
-            return
-        List = res.data[0]
-
-    # see if the item is already in List
-    for l in List['items']:
-        if l['_id'] == item_id:
-            p('"{}" is already in list "{}"'.format(item['title'],List['name']))
+    # FOR LISTS
+    for arg in args:
+        # LIST
+        List = list_from_index_name( arg )
+        if not List:
+            p('** error: list must be index or name')
             return
 
-    List['items'].append({'_id':item_id})
-    db.update({'_t':'list','name':List['name']},{'$set':{'items':List['items']}})
-    db.save()
-    p('adding "{}" to "{}"'.format(item['title'], List['name']) )
+        # see if the item is already in List
+        if item_id in List['items']:
+            p('** warning: "{}" is already in list "{}"'.format(item['title'],List['name']))
+        else:
+            List['items'].append(item_id)
+            db.update({'_t':'list','name':List['name']},{'$set':{'items':List['items']}})
+            db.save()
+            p('"{}" added to "{}"'.format(item['title'], List['name']) )
 
 
 def finish_item(title):
-    try:
-        index = int(title)
-        res = db.find({'_t':'item'}).sort({'added':-1})
-        item = res.data[index-1]
-        item_id = item['_id']
-    except:
-        res = db.find({'_t':'item','title':title})
-        if res.count() != 1:
-            raise Exception('Error: bad argument, Item may either be index or title')
-            return
-        item = res.data[0]
-        item_id = res.data[0]['_id']
+    item = item_from_index_title( title )
+    if not item:
+        p('** error: item must be index or title')
+        return
+    item_id = item['_id']
 
-    if 'finished' in item:
+    if item['finished']:
         p('"{}" already marked finished'.format(item['title']))
         return
 
@@ -287,6 +299,20 @@ def finish_item(title):
 
 def default_action(op, title, args):
     # if op is a list name, show the items in the list
+    if not op and not title:
+        f = config.get('default_action')
+        f = globals().get(f)
+        a = config.get('default_args')
+        if f and a == 3:
+            f(op, title, args)
+        elif f and a == 2:
+            f(title, args)
+        elif f and a == 0:
+            f()
+        else:
+            p('no default action set')
+        return
+
     res = db.find({'_t':'list'})
     for r in res.data:
         if r['name'] == op.lower() or op.lower() == 'all': # found it
@@ -301,19 +327,88 @@ def default_action(op, title, args):
             if op.lower() != 'all':
                 break
 
-    if not op and not title:
-        print_help()
+
+def listadd(title, args):
+    ## sanity check args
+    o = {'_t':'list','items':[],'name':title}
+    if not title:
+        rn = input('name > ')
+        if rn:
+            o['name'] = rn.lstrip().rstrip()
+
+    ## empty?
+    if not o.get('name'):
+        p('** error: list cant have empty name')
+        return
+
+    ## check if already exists
+    res = db.find({'_t':'list','name':o['name']})
+    if res.count() > 0:
+        p('** error: list "{}" already exists'.format(o['name']))
+        return
+
+    ## confirm
+    yn = input('sure you want to create new list "{}" y/N? '.format(o['name']))
+    if not yn.lower().startswith('y'):
+        p('bailing')
+        return
+
+    ## add it & save
+    db.insert(o).save()
+
+    ## report
+    res = db.find({'_t':'list','name':o['name']})
+    if res.data:
+        p( 'list created: "[{}] {}"'.format(res.data[0]['_id'],res.data[0]['name']) )
+
+
+def load_config():
+    res = db.find({'_t':'config'})
+    if res.count() == 0:
+        p('Error: no config!')
+        sys.exit(0)
+
+    global config
+    config = res.data[0].get('settings', {})
+
+def set_defaults():
+    global op
+    global LIST_LIMIT
+    global title
+    global args
+    z = 1000000
+    D = LIST_LIMIT = config.get( 'default_rows', z )
+    if '--limit' == op:
+        op = ''
+        LIST_LIMIT = title
+        title = ''
+    elif '--limit' == title:
+        LIST_LIMIT = args.pop(0)
+        title = ''
+    elif '--limit' in args:
+        i = args.index('--limit')
+        args.pop(i)
+        LIST_LIMIT = args.pop(i)
+
+    try:
+        LIST_LIMIT = int(LIST_LIMIT)
+    except:
+        LIST_LIMIT = D
 
 
 def print_help():
     p("""Usage:
   --help, -h              show this help
   all                     show all items
-  new                     add a new item
-  add                     add a item to a list
+  new    [-n]             add a new item
+  add    [-a]             add a item to a list
   lists                   show all lists
-  finish                  mark an  item finished
+  finish [-f]             mark an  item finished
+  listadd                 add a new list
   [list name][all]        show items in a list, or all items in all lists
+
+  general:
+    --limit N             limit number of results returned in listing queries
 """)
 
 
@@ -330,30 +425,38 @@ title = sys.argv[2:3]
 title = '' if len(title) == 0 else title.pop()
 args = sys.argv[3:]
 
+load_config()
+
+set_defaults()
+
 
 if op == '-h' or op == '--help':
     print_help()
 
 # show all items
-elif op == 'all':
+elif op == 'all' or '-a' == op:
+    LIST_LIMIT = 1000000
     show_all_items( title, args )
 
 # new item
-elif op == 'new':
+elif op == 'new' or op == '-n':
     new_item( title, args )
 
 # add item to list
 elif op == 'add':
     add_item_to_list( title, args )
 
+elif op == 'listadd':
+    listadd(title, args)
+
 # show lists
 elif op == 'lists':
-    res = db.find({'_t':'list'}).sort({'name':1})
+    res = db.find({'_t':'list'}).sort({'_id':1})
     for i, r in enumerate(res.data):
-        p('{}: {}'.format( i+1, r['name'] ) )
+        p('{}: [{}] {}'.format( i+1, r['_id'], r['name'] ) )
 
 # mark item finished
-elif op == 'finish':
+elif op == 'finish' or op == '-f':
     finish_item(title)
 
 else:
