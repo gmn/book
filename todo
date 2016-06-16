@@ -25,7 +25,19 @@ Ideas:
 
 - all output modes should print a header, so you know which codepath it went down
 - how can I improve item aggregation?
-    - automatic id erosion (due to time decay) ?
+    - automatic id erosion due to time decay?
+
+- lists can have 0-N alternate names (eg. programming|coding)
+
+- better management of input flags/args
+    - ie. for instance, keep list of all possible arguments so that we can prevent
+    from items or lists being named the EXACT same thing.
+
+- clean up Printing
+
+- ability to add item to groups at the command line, during item creation
+- ditto, interactive
+
 
 """
 
