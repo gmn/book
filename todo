@@ -557,6 +557,7 @@ def print_lists():
 def show_unlisted(title, args):
     backwards = True if '-r' in title or '-r' in args else False
     longprint = True if '-l' in title or '-l' in args else False
+    show_fini = True if '--show-finished' in title or '--show-finished' in args else False
 
     lists = db.find({"_t":"list"})
     ids = {""}
@@ -564,7 +565,10 @@ def show_unlisted(title, args):
         for b in List['items']:
             ids.add(b)
 
-    items = db.find({'_t':'item'})
+    criteria = {'_t':'item'}
+    if not show_fini:
+        criteria['finished'] = {'$exists':False}
+    items = db.find(criteria)
     unlisted = [b for b in items.data if b['_id'] not in ids]
 
     iterate_over = reversed(unlisted) if backwards else unlisted
@@ -649,7 +653,7 @@ def rm_item_from_list(title, args):
     ## report
     p( '"{}" removed from "{}"'.format(item['title'], List['name']) )
 
-def move_item(title, args):
+def mv_item(title, args):
     usage = """ usage: todo mv list item_id new_index """
     List = list_from_index_name( title )
     if not List:
@@ -730,8 +734,8 @@ def print_help():
   unlisted                show items that are not in a list
   listchange              edit a list
   del                     delete an item completely
-  rm                      remove item from list
-  move|mv list id index   In a List, move an item to a new index
+  rm <itm> <list>         remove item from list
+  mv <lst> <_id> <index>  In a List, move an item to a new index
 
   default:
     [list_name]           show items in a list of matching: list_name
@@ -741,6 +745,7 @@ def print_help():
     --lists ls1,ls2       When creating new Item, include it in lists
     -l                    long print format
     -r                    reverse order
+    --show-finished       show_unlisted will not show finished w/o this flag
 """)
 
 
@@ -761,7 +766,7 @@ load_config()
 
 set_defaults()
 
-reserved = ('-h','--help','all','-a','new','-n','edit','-e','add','listadd','lists','finish','finished','unlisted','listchange','del','rm','move','mv')
+reserved = ('-h','--help','all','-a','new','-n','edit','-e','add','listadd','lists','finish','finished','unlisted','listchange','del','rm','mv')
 
 if op == '-h' or op == '--help':
     print_help()
@@ -790,8 +795,8 @@ elif op == 'del':
     delete_item(title)
 elif op == 'rm':
     rm_item_from_list(title, args)
-elif op == 'move' or op == 'mv':
-    move_item(title, args)
+elif op == 'mv':
+    mv_item(title, args)
 else:
     default_action(op, title, args)
 
