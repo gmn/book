@@ -50,8 +50,8 @@ Ideas:
 
 import sys, os, json, re, random
 
-TODO_PATH = '/home/gnaughto/Private/logs/databases/todo.json'
-QUERYABLE_PATH = '/home/gnaughto/code/pyqueryable'
+TODO_PATH = '/home/gmn/Private/logs/databases/todo.json'
+QUERYABLE_PATH = '/home/gmn/code/pyqueryable'
 
 sys.path.append(QUERYABLE_PATH)
 from Queryable import db_object
@@ -101,12 +101,15 @@ def show_now_items( title, args ):
 
     # order of items determines order printed
     items = list(reversed(items) if backwards else items)
-    for i, _id in enumerate(items[:LIST_LIMIT]):
+    index = 0
+    for _id in items:
         for it in res.data:
             if it['_id'] == _id:
-                print_item( i, Item(**it), longprint, lists )
+                print_item( index, Item(**it), longprint, lists )
+                index += 1
                 break
-
+        if index >= LIST_LIMIT:
+            break
 
 # object equal
 def objeq( x, y ):
@@ -390,6 +393,16 @@ def finish_item(title):
     d = res.data[0]
     p( '"{}" marked finished on "{}"'.format(d['title'],d['finished']) )
 
+    """
+        TODO: remove item from all lists it was a member of,
+              but append list_id and list_name to an array on the item
+              to keep a record of what it had been a member of.
+              This makes active list management much easier, as you're not
+              stepping over all of these dead tasks.
+
+	This also means that you must go through all the lists and remove
+	all of the index of finished items from them by hand!
+    """
 
 def default_action(op, title, args):
 
