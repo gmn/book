@@ -683,7 +683,9 @@ def mv_item(title, args):
 
     db.update({'_id':List['_id']}, {'$set':{'items':items}}).save()
 
-    p( 'In list: "{}", moved Item: "[{}] {}", to Index: "{}"'.format(List['name'],item['_id'],item['title'],new_index) )
+    p( 'Moved Item "[{}] {}" to Index "{}" in list: "{}"'.format(
+        item['_id'],item['title'],new_index, List['name'])
+    )
 
 
 def load_config():
