@@ -79,6 +79,7 @@ def print_list( r, backwards, longprint, Lists ):
             bk = Iook(**bb.data[0])
             print_item( i, bk, longprint, Lists )
 
+
 def show_all_items( title, args ):
     order = 1 if title == '-r' or '-r' in args else -1
     res = db.find({'_t':'item', 'finished':{'$exists':False}}).sort({'added':order})
@@ -88,16 +89,23 @@ def show_all_items( title, args ):
     for index, item in ((i, Item(**r)) for i, r in enumerate(res.data[:LIST_LIMIT])):
         print_item( index, item, longprint, lists )
 
+
 def show_now_items( title, args ):
     lists = db.find({'_t':'list','name':'now'}).sort({'name':1})
     items = lists.data[0]['items']
 
-    order = 1 if title == '-r' or '-r' in args else -1
-    res = db.find({'_t':'item','finished':{'$exists':False},'_id':{'$in':items}}).sort({'added':order})
+    backwards = True if title == '-r' or '-r' in args else False
     longprint = True if title == '-l' or '-l' in args else False
 
-    for index, item in ((i, Item(**r)) for i, r in enumerate(res.data[:LIST_LIMIT])):
-        print_item( index, item, longprint, lists )
+    res = db.find({'_t':'item','finished':{'$exists':False},'_id':{'$in':items}})
+
+    # order of items determines order printed
+    items = list(reversed(items) if backwards else items)
+    for i, _id in enumerate(items[:LIST_LIMIT]):
+        for it in res.data:
+            if it['_id'] == _id:
+                print_item( i, Item(**it), longprint, lists )
+                break
 
 
 # object equal
@@ -385,24 +393,32 @@ def finish_item(title):
 
 def default_action(op, title, args):
 
+    backwards = True if '-r' in op or '-r' in title or '-r' in args else False
+    longprint = True if '-l' in op or '-r' in title or '-l' in args else False
+
+    if '-r' in op or '-l' in op:
+        op = ''
+    if '-r' in title or '-l' in title:
+        title = ''
+    for flag in ('-l','-r'):
+        if flag in args:
+            args.remove(flag)
+
     # if op is a list name, show the items in the list
     if not op and not title:
         f = config.get('default_action')
         f = globals().get(f)
         a = config.get('default_args')
+        targs = args + (['-r'] if backwards else []) + (['-l'] if longprint else [])
         if f and a == 3:
-            f(op, title, args)
+            f(op, title, targs)
         elif f and a == 2:
-            f(title, args)
+            f(title, targs)
         elif f and a == 0:
             f()
         else:
             p('no default action set')
         return
-
-
-    backwards = True if '-r' in title or '-r' in args else False
-    longprint = True if '-l' in title or '-l' in args else False
 
     # if op is a list name, show the items in the list, optionally combining multiple lists
     Lists = db.find({'_t':'list'})
@@ -708,6 +724,9 @@ def print_help():
 
   general:
     --limit N             limit number of results returned in listing queries
+    --lists ls1,ls2       When creating new Item, include it in lists
+    -l                    long print format
+    -r                    reverse order
 """)
 
 
@@ -759,7 +778,6 @@ elif op == 'rm':
     rm_item_from_list(title, args)
 elif op == 'move' or op == 'mv':
     move_item(title, args)
-
 else:
     default_action(op, title, args)
 
