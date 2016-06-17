@@ -16,42 +16,41 @@ List:
     comments:
     items: []
 
-Ideas:
-- support for chained dependencies, meaning:
-    - buy a house
-    - if I buy a house, buy a sofa
-    - once we have a sofa, buy a dog
-    one isn't relative until its precursor is accomplished: Triggers?
+TODO
+    X remove _id of finished item from all lists, by hand
+    X finish_item() removes _id from all lists, and writes a
+        record of what list_id it belonged to "member_of": []
+    X pyQueryable should catch bad json error, and not overwrite with
+        and empty file, which erases the entire thing! == Baddddd!
+    - fix list print ordering everywhere
+        - again, put all List Printing into a single place,
+            probably "class List:"
+        - want: lists can have 0-N alternate names (eg. programming|coding)
+    - put all Item formatting into a single toString() method, that
+        produces "[{}] {}".format(_id,title)
+    - put the print_item() function inside the Item class
+    - fix input flags. Write early pass that processes all args early and
+        produces a Class object with all settings that can be passed
+        - keep list of all possible flags, and prevent Item and List
+            being created with the same name
+    - all output modes should print a header,
+        so you know which codepath it went down
+    - support for chained dependencies, meaning:
+        put a chain member in Item, with a list of (item_id,list_id)
+        - when the item is finished, it can run down the list and add
+          every item_id to its list_id. And print a message that such and
+          such has been Initialized in such-and-such a List.
+    - global date formatting, (except in edit_item)
 
-- all output modes should print a header, so you know which codepath it went down
+Ideas:
 - how can I improve item aggregation?
     - automatic id erosion due to time decay?
-
-- lists can have 0-N alternate names (eg. programming|coding)
-
-- better management of input flags/args
-    - ie. for instance, keep list of all possible arguments so that we can prevent
-    from items or lists being named the EXACT same thing.
-
-- clean up Printing
-
-- ability to add item to groups at the command line, during item creation
-- ditto, interactive
-
-- shift indexes:
-    - need to unify list printing, so all code paths go through same algorithm.
-        it needs to print the items in List['items'] order, the order of the array.
-        So that this is how we will govern what floats to the top. BUt also so that
-        the order (or reverse) is always the same in each print type. (right now,
-        list print, and all print, and default print are different)
-
-
 """
 
 import sys, os, json, re, random
 
-TODO_PATH = '/home/gmn/Private/logs/databases/todo.json'
-QUERYABLE_PATH = '/home/gmn/code/pyqueryable'
+TODO_PATH = '/home/{}/Private/logs/databases/todo.json'.format(os.environ['USER'])
+QUERYABLE_PATH = '/home/{}/code/pyqueryable'.format(os.environ['USER'])
 
 sys.path.append(QUERYABLE_PATH)
 from Queryable import db_object
@@ -157,12 +156,13 @@ class Item:
     added = ''
     finished = ''
     comments = ''
+    member_of = []
     index = 0           # 0 is no index, not set
     _t = ''
     _id = ''
     attribs = ('_id', 'title', 'added', 'finished', 'comments', 'index')
 
-    def __init__(self,title=None, added=None, finished=None, comments=None, index=None,_t=None,_id=None):
+    def __init__(self,title=None, added=None, finished=None, comments=None, member_of=None, index=None,_t=None,_id=None):
         if title:
             self.title = title
         if added:
@@ -171,6 +171,8 @@ class Item:
             self.finished = finished
         if comments:
             self.comments = comments
+        if member_of:
+            self.member_of = member_of
         if index:
             self.index = index
         if _t:
@@ -373,7 +375,7 @@ def add_item_to_list( title, args ):
             List['items'].append(item_id)
             db.update({'_t':'list','name':List['name']},{'$set':{'items':List['items']}})
             db.save()
-            p('"{}" added to "{}"'.format(item['title'], List['name']) )
+            p('"[{}] {}" added to "{}"'.format(item['_id'],item['title'], List['name']) )
 
 
 def finish_item(title):
@@ -387,22 +389,21 @@ def finish_item(title):
         p('"{}" already marked finished'.format(item['title']))
         return
 
-    db.update({'_id':item_id},{'$set':{'finished':'now()'}})
-    db.save()
+    db.update({'_id':item_id},{'$set':{'finished':'now()'}}).save()
     res = db.find({'_id':item_id})
     d = res.data[0]
     p( '"{}" marked finished on "{}"'.format(d['title'],d['finished']) )
 
-    """
-        TODO: remove item from all lists it was a member of,
-              but append list_id and list_name to an array on the item
-              to keep a record of what it had been a member of.
-              This makes active list management much easier, as you're not
-              stepping over all of these dead tasks.
-
-	This also means that you must go through all the lists and remove
-	all of the index of finished items from them by hand!
-    """
+    # remove item from all lists it was a member of,
+    lists = db.find({"_t":"list"})
+    member_of = []
+    for L in lists.data:
+        if item_id in L['items']:
+            L['items'].remove(item_id)
+            db.update({"_id":L["_id"]}, {'$set':{'items':L['items']}}).save()
+            member_of.append(L['_id'])
+    if member_of:
+        db.update({'_id':item_id},{'$set':{'member_of':member_of}}).save()
 
 def default_action(op, title, args):
 
