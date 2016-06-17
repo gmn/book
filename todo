@@ -38,6 +38,13 @@ Ideas:
 - ability to add item to groups at the command line, during item creation
 - ditto, interactive
 
+- shift indexes:
+    - need to unify list printing, so all code paths go through same algorithm.
+        it needs to print the items in List['items'] order, the order of the array.
+        So that this is how we will govern what floats to the top. BUt also so that
+        the order (or reverse) is always the same in each print type. (right now,
+        list print, and all print, and default print are different)
+
 
 """
 
@@ -57,9 +64,9 @@ config = {}
 
 def print_item( i, item, longprint, Lists ):
     if longprint:
-        p(item.toString(index='{}:'.format(i+1), lists=Lists.data))
+        p(item.toString(index='{}:'.format(i), lists=Lists.data))
     else:
-        p('{}: {}'.format((i+1), item.shortString()))
+        p('{}: {}'.format((i), item.shortString()))
 
 def print_list( r, backwards, longprint, Lists ):
     p('-' * 39)
@@ -258,9 +265,12 @@ class Item:
 
 def new_item( title, args ):
     obj = {'_t':'item', 'title':title, 'added':'now()'}
+
     comments = False
-    if args:
+    if args and args[0] != '--lists':
         obj['comments'] = comments = args[0]
+        args.pop(0)
+
     for i in ['title','comments']:
         if (i == 'title' and title) or (i == 'comments' and comments):
             continue
@@ -282,6 +292,9 @@ def new_item( title, args ):
         c = Item(**res.data[0])
         p('Adding:\n{}'.format(c.toString()) )
 
+        if len(args) > 1 and args[0] == '--lists':
+            lists = args[1].split(',') # Comma-separated list of listnames, no spaces
+            add_item_to_list(c._id, lists)
 
 def edit_item(title, args):
     item = item_from_index_title( title )
@@ -606,6 +619,38 @@ def rm_item_from_list(title, args):
     ## report
     p( '"{}" removed from "{}"'.format(item['title'], List['name']) )
 
+def move_item(title, args):
+    usage = """ usage: todo mv list item_id new_index """
+    List = list_from_index_name( title )
+    if not List:
+        p('** error: list must be index or name')
+        p(usage)
+        return
+    items = List['items']
+
+    item = item_from_index_title( args[0] )
+    if not item:
+        p('** error: item must be index or title')
+        p(usage)
+        return
+
+    new_index = int(args[1])
+
+    current_index = items.index( item._id )
+    if current_index == new_index:
+        p('** warning: specified index not different than current')
+        p(usage)
+        return
+
+    # remove current from list
+    items.remove( item._id )
+    # insert into new spot
+    items.insert(new_index, item._id )
+
+    db.update({'_id':List['_id']}, {'$set':{'items':items}}).save()
+
+    p( 'In list: "{}", moved Item: "[{}] {}", to Index: "{}"'.format(List['name'],item['_id'],item['title'],new_index) )
+
 
 def load_config():
     res = db.find({'_t':'config'})
@@ -656,6 +701,7 @@ def print_help():
   listchange              edit a list
   del                     delete an item completely
   rm                      remove item from list
+  move|mv list id index   In a List, move an item to a new index
 
   default:
     [list_name]           show items in a list of matching: list_name
@@ -682,6 +728,7 @@ load_config()
 
 set_defaults()
 
+reserved = ('-h','--help','all','-a','new','-n','edit','-e','add','listadd','lists','finish','finished','unlisted','listchange','del','rm','move','mv')
 
 if op == '-h' or op == '--help':
     print_help()
@@ -710,7 +757,8 @@ elif op == 'del':
     delete_item(title)
 elif op == 'rm':
     rm_item_from_list(title, args)
-
+elif op == 'move' or op == 'mv':
+    move_item(title, args)
 
 else:
     default_action(op, title, args)
