@@ -59,7 +59,13 @@ from Queryable import db_object
 p    = lambda X: print( str(X) )
 db   = db_object(path=TODO_PATH, jsonarg={'sort_keys':True,'indent':2}).load()
 config = {}
+backwards = False
+longprint = False
 
+def header(msg):
+    p('-' * 39)
+    p('+ {}'.format(msg))
+    p('-' * 39)
 
 def print_item( i, item, longprint, Lists ):
     if longprint:
@@ -68,9 +74,7 @@ def print_item( i, item, longprint, Lists ):
         p('{}: {}'.format((i), item.shortString()))
 
 def print_list( r, backwards, longprint, Lists ):
-    p('-' * 39)
-    p('+ items in "{}"'.format(r['name']))
-    p('-' * 39)
+    header('items in list: "{}"'.format(r['name']))
     generator = reversed(r['items']) if backwards else r['items']
     for i, b in enumerate( generator ):
         bb = db.find({'_id':b['_id']})
@@ -83,7 +87,6 @@ def show_all_items( title, args ):
     order = 1 if title == '-r' or '-r' in args else -1
     res = db.find({'_t':'item', 'finished':{'$exists':False}}).sort({'added':order})
     lists = db.find({'_t':'list'}).sort({'name':1})
-    longprint = True if title == '-l' or '-l' in args else False
 
     for index, item in ((i, Item(**r)) for i, r in enumerate(res.data[:LIST_LIMIT])):
         print_item( index, item, longprint, lists )
@@ -92,9 +95,6 @@ def show_all_items( title, args ):
 def show_now_items( title, args ):
     lists = db.find({'_t':'list','name':'now'}).sort({'name':1})
     items = lists.data[0]['items']
-
-    backwards = True if title == '-r' or '-r' in args else False
-    longprint = True if title == '-l' or '-l' in args else False
 
     res = db.find({'_t':'item','finished':{'$exists':False},'_id':{'$in':items}})
 
@@ -407,18 +407,7 @@ def finish_item(title):
 
 def default_action(op, title, args):
 
-    backwards = True if '-r' in op or '-r' in title or '-r' in args else False
-    longprint = True if '-l' in op or '-r' in title or '-l' in args else False
-
-    if '-r' in op or '-l' in op:
-        op = ''
-    if '-r' in title or '-l' in title:
-        title = ''
-    for flag in ('-l','-r'):
-        if flag in args:
-            args.remove(flag)
-
-    # if op is a list name, show the items in the list
+    # default action
     if not op and not title:
         f = config.get('default_action')
         f = globals().get(f)
@@ -434,7 +423,8 @@ def default_action(op, title, args):
             p('no default action set')
         return
 
-    # if op is a list name, show the items in the list, optionally combining multiple lists
+    # if op is a list name, show the items in the list,
+    #   optionally combining multiple lists
     Lists = db.find({'_t':'list'})
     sets = []
     names = []
@@ -473,10 +463,8 @@ def default_action(op, title, args):
                 ids = ids.intersection( sets[i] )
 
     if ids or names:
-        p('-' * 39)
-        p('+ items in "{}"'.format(operator.join(names)))
-        p('-' * 39)
-        generator = reversed(sorted(ids)) if backwards else sorted(ids)
+        header('items in list{} "{}"'.format('s' if len(names) > 1 else '', operator.join(names)))
+        generator = reversed(ids) if backwards else ids
         for i, _id in enumerate( generator ):
             bb = db.find({'_id':_id})
             if bb.count():
@@ -485,6 +473,7 @@ def default_action(op, title, args):
 
     # or show all lists
     elif op.lower() == 'all':
+        header('all lists')
         list_of_lists = reversed(Lists.data) if backwards else Lists.data
         for r in list_of_lists:
             print_list( r, backwards, longprint, Lists )
@@ -501,14 +490,15 @@ def default_action(op, title, args):
 
             # or, fail all that,
             else:
-                # try to match titles or authors
+                # try to match titles
                 match = re.compile('.*{}.*'.format(op), re.IGNORECASE)
                 order = -1 if backwards else 1
-                res = db.find({'_t':'item', '$or':[{'title':match},{'author':match}]}).sort({'_id':order})
-                for i, bk in enumerate([Item(**b) for b in res.data]):
-                    print_item( i, bk, longprint, Lists )
-
-                if not res.data:
+                res = db.find({'_t':'item','title':match}).sort({'_id':order})
+                if res.data:
+                    header( 'items matching "{}"'.format(op) )
+                    for i, bk in enumerate([Item(**b) for b in res.data]):
+                        print_item( i, bk, longprint, Lists )
+                else:
                     sys.stdout.write( '\n        **************' )
                     sys.stdout.write( '\n        ** no match **' )
                     sys.stdout.write( '\n        **************\n\n' )
@@ -548,6 +538,7 @@ def listadd(title, args):
     if res.data:
         p( 'list created: "[{}] {}"'.format(res.data[0]['_id'],res.data[0]['name']) )
 
+
 def print_lists():
     res = db.find({'_t':'list'}).sort({'_id':1})
     for i, r in enumerate(res.data):
@@ -555,8 +546,7 @@ def print_lists():
 
 
 def show_unlisted(title, args):
-    backwards = True if '-r' in title or '-r' in args else False
-    longprint = True if '-l' in title or '-l' in args else False
+    header('unlisted')
     show_fini = True if '--show-finished' in title or '--show-finished' in args else False
 
     lists = db.find({"_t":"list"})
@@ -578,9 +568,7 @@ def show_unlisted(title, args):
 
 
 def show_finished(title, args):
-    backwards = True if '-r' in title or '-r' in args else False
-    longprint = True if '-l' in title or '-l' in args else False
-
+    header('finished')
     lists = db.find({'_t':'list'})
     items = db.find({'_t':'item', 'finished':{'$exists':True}})
     iterate_over = reversed(items.data) if backwards else items.data
@@ -627,6 +615,7 @@ def delete_item(title):
     else:
         p("aborted deletion")
 
+
 def rm_item_from_list(title, args):
     item = item_from_index_title( title )
     if not item:
@@ -652,6 +641,7 @@ def rm_item_from_list(title, args):
 
     ## report
     p( '"{}" removed from "{}"'.format(item['title'], List['name']) )
+
 
 def mv_item(title, args):
     usage = """ usage: todo mv list item_id new_index """
@@ -720,6 +710,18 @@ def set_defaults():
         LIST_LIMIT = int(LIST_LIMIT)
     except:
         LIST_LIMIT = D
+
+    global backwards
+    global longprint
+    backwards = True if '-r' in op or '-r' in title or '-r' in args else False
+    longprint = True if '-l' in op or '-l' in title or '-l' in args else False
+    if op == '-l' or op == '-r':
+        op = ''
+    if title == '-l' or title == '-r':
+        title = ''
+    for l in ('-r','-l'):
+        if l in args:
+            args.remove(l)
 
 
 def print_help():
