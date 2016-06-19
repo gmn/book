@@ -209,7 +209,6 @@ class CList:
             self.items = items
         if names:
             self.names = names
-
     #
     # dictionary-like interfaces
     #
@@ -237,13 +236,13 @@ class CList:
     def keys(self):
         return self.attribs
 
-    def items(self):
-        a = []
-        for key in self.attribs:
-            val = self.__getattribute__(key)
-            if val:
-                a.append( {key:val} )
-        return a
+#    def items(self):
+#        a = []
+#        for key in self.attribs:
+#            val = self.__getattribute__(key)
+#            if val:
+#                a.append( {key:val} )
+#        return a
 
     def toDict(self):
         obj = {}
@@ -457,7 +456,7 @@ def add_item_to_list( title, args ):
                 continue
 
         # see if the item is already in List
-        if item_id in List['items']:
+        if item_id in List.items:
             p('** warning: "{}" is already in list "{}"'.format(item.shortString(),List['name']))
         else:
             List['items'].append(item_id)
