@@ -155,13 +155,13 @@ class CItem:
         db.insert(obj)
         return True
 
-    def check_exists( self, db ):
-        obj = {'_t':'item'}
+    def check_exists( self, db ):   # right now this blocks any duplicate titles
+        obj = {'_t':'item','finished':{'$exists':False}}
         for i in ['title']:
             e = self.__getattribute__(i)
             if e:
                 obj[i] = e
-        if not obj.get('title'): # not exist or unset. must have title.
+        if not obj.get('title'):    # not exist or unset. must have title.
             return False
         res = db.find(obj)
         return res.count() == 1
@@ -191,10 +191,12 @@ class CList:
     _id = ''
     name = ''
     comments = ''
+    items = []
+    names = []
 
-    attribs = ('_id', 'name', 'comments')
+    attribs = ('_id', 'name', 'comments', 'items', 'names')
 
-    def __init__(self, _t=None, _id=None, name=None, comments=None):
+    def __init__(self, _t=None, _id=None, name=None, comments=None, items=None, names=None):
         if _t:
             self._t = _t
         if _id:
@@ -203,6 +205,10 @@ class CList:
             self.name = name
         if comments:
             self.comments = comments
+        if items:
+            self.items = items
+        if names:
+            self.names = names
 
     #
     # dictionary-like interfaces
@@ -249,6 +255,11 @@ class CList:
                 obj[key] = val
         return obj
 
+    #
+    # actual methods
+    #
+    def shortString(self):
+        return '[{}] {}'.format(self._id, self.name)
 
 
 
@@ -329,7 +340,7 @@ def list_from_index_name( name ):
         res = db.find({'_t':'list', 'name':name})
         if res.count() != 1:
             return False
-        return res.data[0]
+        return CList(**res.data[0])
 
     try:
         index = int(name)           # try to cast it
@@ -339,7 +350,7 @@ def list_from_index_name( name ):
     res = db.find({'_t':'list', '_id':index})
     if res.count() != 1:
         return from_name( name )
-    return res.data[0]
+    return CList(**res.data[0])
 
 
 def new_item( title, args ):
@@ -369,7 +380,7 @@ def new_item( title, args ):
         return
     db.save()
 
-    res = db.find({'_t':'item','title':b.title})
+    res = db.find({'_t':'item','title':b.title}).sort({'added':-1})
     if res.count() > 0:
         c = CItem(**res.data[0])
         p('Adding:\n{}'.format(c.shortString()) )
@@ -630,13 +641,13 @@ def listadd(title, args):
     ## report
     res = db.find({'_t':'list','name':o['name']})
     if res.data:
-        p( 'list created: "{}"'.format( CItem(**res.data[0]).shortString()) )
+        p( 'list created: "{}"'.format( CList(**res.data[0]).shortString()) )
 
 
 def print_lists():
     res = db.find({'_t':'list'}).sort({'_id':1})
     for i, r in enumerate(res.data):
-        p('{}: {}'.format( i+1, CItem(**r).shortString() ))
+        p('{}: {}'.format( i+1, CList(**r).shortString() ))
 
 
 def show_unlisted(title, args):
@@ -664,7 +675,7 @@ def show_unlisted(title, args):
 def show_finished(title, args):
     header('finished')
     lists = db.find({'_t':'list'})
-    items = db.find({'_t':'item', 'finished':{'$exists':True}})
+    items = db.find({'_t':'item', 'finished':{'$exists':True}}).sort({'finished':1})
     iterate_over = reversed(items.data) if backwards else items.data
     for i, b in enumerate(iterate_over):
         bk = CItem(**b)
