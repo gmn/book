@@ -378,9 +378,11 @@ def new_item( title, args ):
             lists = args[1].split(',') # Comma-separated list of listnames, no spaces
             add_item_to_list(c._id, lists)
 
-            if '-0' in args:
-                for l in lists:
-                    mv_item(l, [c._id, 0])
+            if len(lists) == 1:
+                for index in range(30):
+                    if '-{}'.format(index) in args:
+                        mv_item(lists.pop(), [c._id, index])
+                        break
 
 
 def edit_item(title, args):
@@ -411,7 +413,7 @@ def edit_item(title, args):
     if ans.lower().startswith('y'):
         db.update({'_id':item['_id']},{'$set':item.toDict()}).save()
         res = db.find({'_id':item['_id']})
-        p( '"{}" updated'.format(CItem(**res.data[0].shortString())) )
+        p( '"{}" updated'.format(CItem(**res.data[0]).shortString()) )
     else:
         p('skipping')
 
@@ -628,8 +630,7 @@ def listadd(title, args):
     ## report
     res = db.find({'_t':'list','name':o['name']})
     if res.data:
-        item = CItem(**res.data[0])
-        p( 'list created: "{}"'.format(item.shortString()) )
+        p( 'list created: "{}"'.format( CItem(**res.data[0]).shortString()) )
 
 
 def print_lists():
