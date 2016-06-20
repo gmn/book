@@ -497,10 +497,9 @@ def finish_item(title):
     if member_of:
         db.update({'_id':item_id},{'$set':{'member_of':member_of}}).save()
 
-def default_action(op, title, args):
 
-    # default action
-    if not op and not title:
+def default_action(op, title, args):
+    if not op and not title: # no args
         f = config.get('default_action')
         f = globals().get(f)
         a = config.get('default_args')
@@ -608,12 +607,13 @@ def default_action(op, title, args):
 
 
 def listadd(title, args):
-    ## sanity check args
     o = {'_t':'list','items':[],'name':title}
-    if not title:
-        rn = input('name > ')
+    for i in ('name', 'comments'):
+        if title and i == 'name':
+            continue
+        rn = input('{} > '.format(i))
         if rn:
-            o['name'] = rn.lstrip().rstrip()
+            o[i] = rn.lstrip().rstrip()
 
     ## empty?
     if not o.get('name'):
