@@ -711,13 +711,26 @@ def delete_item(title):
 
     ans = input('delete: "{}"? y/N > '.format(item.shortString()))
     if ans.lower().startswith('y'):
+        # rm item
         db.remove({'_t':'item', '_id':item['_id']})
         res = db.find({'_id':item['_id']})
-        if res.count() == 0:
-            p( "\nRemoved successfully".format( item['title'] ) )
+        if res.count() != 0:
+            p( "\nFailed to remove!" )
+            return
+        # rm item from lists
+        Lists = db.find({"_t":"list"})
+        names = []
+        for lst in Lists.data:
+            if item._id in lst['items']:
+                lst['items'].remove(item._id)
+                db.update({"_t":"list","_id":lst['_id']},{'$set':{'items':lst['items']}})
+                names.append(lst['name'])
         db.save()
+        p( '"{}" deleted'.format( item.shortString() ) )
+        if names:
+            p( "removed from lists: {}".format(', '.join(names)) )
     else:
-        p("aborted deletion")
+        p("deletion aborted")
 
 
 def rm_item_from_list(title, args):
