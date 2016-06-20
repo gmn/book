@@ -76,7 +76,7 @@ class CItem:
 
     member_of = []
     index = 0           # 0 is no index, not set
-    attribs = ('_id', 'title', 'added', 'finished', 'comments', 'index')
+    attribs = ('_id', 'title', 'added', 'finished', 'comments', 'index', 'member_of')
 
     def __init__(self, _t=None, _id=None, title=None, added=None, finished=None, comments=None, member_of=None, index=None):
         if _t:
