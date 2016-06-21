@@ -457,10 +457,11 @@ def edit_item(title, args):
         if ans:
             item[k] = ans.lstrip().rstrip()
 
-    item2 = item_from_index_title( title )
-    if objeq( item.toDict(), item2.toDict() ):
-        p('no change')
-        return
+# TODO: objeq is broke!
+#    item2 = item_from_index_title( title )
+#    if objeq( item.toDict(), item2.toDict() ):
+#        p('no change')
+#        return
 
     sys.stdout.write('\n--> CHANGED ITEM <--:\n')
     for k in item.keys():
