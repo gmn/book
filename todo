@@ -62,23 +62,46 @@ config = {}
 backwards = False
 longprint = False
 
+
 #
 # classes
 #
+from datetime import datetime
+
+class Date:
+    fmt = "%a, %b %d %Y"
+    dbfmt = '%Y-%m-%d %H:%M:%S'
+
+    def __init__(self, date=None, fmt=None):
+        if fmt:
+            (d, t) = fmt.split(' ')
+            self.date = datetime(*(int(s) for s in (d.split('-') + t.split(':'))))
+        else:
+            self.date = date if date else datetime.now()
+
+    def str(self):
+        return datetime.strftime(self.date, self.fmt)
+
+    def __str__(self):
+        return self.str()
+
+    def db(self):
+        return datetime.strftime(self.date, self.dbfmt)
+
+
 class CItem:
     _t = ''
 
     _id = ''
     title = ''
     added = ''
-    finished = ''
+    finished = []
     comments = ''
 
-    member_of = []
-    index = 0           # 0 is no index, not set
-    attribs = ('_id', 'title', 'added', 'finished', 'comments', 'index', 'member_of')
+    active = 1
+    attribs = ('_id', 'title', 'added', 'finished', 'comments', 'active')
 
-    def __init__(self, _t=None, _id=None, title=None, added=None, finished=None, comments=None, member_of=None, index=None):
+    def __init__(self, _t=None, _id=None, title=None, added=None, finished=None, comments=None, active=None):
         if _t:
             self._t = _t
         if _id:
@@ -91,10 +114,8 @@ class CItem:
             self.finished = finished
         if comments:
             self.comments = comments
-        if member_of:
-            self.member_of = member_of
-        if index:
-            self.index = index
+        if active:
+            self.active = active
 
     #
     # dictionary-like interfaces
@@ -147,16 +168,28 @@ class CItem:
     def insert( self, db ):
         if self.check_exists(db):
             return False
-        obj = {'_t':'item'}
+
+        res = db.find({'_t':'item','active':0,'title':self.title})
+        obj = {}
+        if res.count() == 1:
+            # reuse an inactive item with exact same title
+            obj = res.data[0]
+            obj['active'] = 1
+        obj['_t'] = 'item'
+
         for i in self.attribs[1:]:
             e = self.__getattribute__(i)
             if e:
                 obj[i] = e
-        db.insert(obj)
+
+        if res.count() == 1: # reuse
+            db.update({'_t':'item','_id':obj['_id']}, {'$set':obj})
+        else:
+            db.insert(obj)
         return True
 
-    def check_exists( self, db ):   # right now this blocks any duplicate titles
-        obj = {'_t':'item','finished':{'$exists':False}}
+    def check_exists( self, db ):   # right now this blocks duplicate titles
+        obj = {'_t':'item','active':1}
         for i in ['title']:
             e = self.__getattribute__(i)
             if e:
@@ -182,7 +215,7 @@ class CItem:
         return s
 
     def shortString(self):
-        return '{}[{}] {}'.format('F=' if self.finished else '', self._id, self.title)
+        return '{}[{}] {}'.format('F=' if not self.active else '', self._id, self.title)
 
 
 class CList:
@@ -287,7 +320,7 @@ def print_list( r, backwards, longprint, Lists ):
 
 def show_recent_items( title, args ):
     order = -1 if backwards else 1
-    res = db.find({'_t':'item', 'finished':{'$exists':False}}).sort({'added':order})
+    res = db.find({'_t':'item', 'active':1}).sort({'added':order})
     lists = db.find({'_t':'list'}).sort({'name':1})
 
     for index, item in ((i, CItem(**r)) for i, r in enumerate(res.data)):
@@ -298,7 +331,7 @@ def show_now_items( title, args ):
     lists = db.find({'_t':'list','name':'now'}).sort({'name':1})
     items = lists.data[0]['items']
 
-    res = db.find({'_t':'item','finished':{'$exists':False},'_id':{'$in':items}})
+    res = db.find({'_t':'item','active':1,'_id':{'$in':items}})
 
     # order of items determines order printed
     items = list(reversed(items) if backwards else items)
@@ -353,7 +386,7 @@ def list_from_index_name( name ):
 
 
 def new_item( title, args ):
-    obj = {'_t':'item', 'title':title, 'added':'now()'}
+    obj = {'_t':'item', 'title':title, 'added':'now()', 'active':1}
 
     comments = False
     if args and args[0] != '--lists':
@@ -379,7 +412,7 @@ def new_item( title, args ):
         return
     db.save()
 
-    res = db.find({'_t':'item','title':b.title}).sort({'added':-1})
+    res = db.find({'_t':'item','title':b.title,'active':1}).sort({'added':-1})
     if res.count() > 0:
         c = CItem(**res.data[0])
         p('Adding:\n{}'.format(c.shortString()) )
@@ -388,6 +421,7 @@ def new_item( title, args ):
             lists = args[1].split(',') # Comma-separated list of listnames, no spaces
             add_item_to_list(c._id, lists)
 
+            # TODO: use regex instead
             if len(lists) == 1:
                 for index in range(100):
                     if '-{}'.format(index) in args:
@@ -472,8 +506,8 @@ def finish_item(title):
         return
     item_id = item['_id']
 
-    if item['finished']:
-        p('"{}" already marked finished'.format(item.shortString()))
+    if not item['active']:
+        p('"{}" is already marked finished'.format(item.shortString()))
         return
 
     ## confirm
@@ -481,21 +515,24 @@ def finish_item(title):
         p('bailing')
         return
 
-    db.update({'_id':item_id},{'$set':{'finished':'now()'}}).save()
-    res = db.find({'_id':item_id})
-    d = res.data[0]
-    p( '"{}" marked finished on "{}"'.format(CItem(**res.data[0]).shortString(), d['finished']) )
-
-    # remove item from all lists it was a member of,
+    ## get lists the item is a member of and remove it's id from them
     lists = db.find({"_t":"list"})
     member_of = []
     for L in lists.data:
         if item_id in L['items']:
-            L['items'].remove(item_id)
-            db.update({"_id":L["_id"]}, {'$set':{'items':L['items']}}).save()
             member_of.append(L['_id'])
-    if member_of:
-        db.update({'_id':item_id},{'$set':{'member_of':member_of}}).save()
+            L['items'].remove(item_id)
+            db.update({"_id":L["_id"]}, {'$set':{'items':L['items']}})
+
+    ## append the new record
+    item.finished.append( {'d':Date().db(), 'l':member_of} )
+
+    ## deactivate and save the record
+    db.update({'_id':item_id},{'$set':{'finished':item.finished, 'active':0}}).save()
+
+    res = db.find({'_id':item_id})
+    fin_date = Date(fmt=res.data[0]['finished'][-1]['d'])
+    p( '"{}" marked finished on "{}"'.format(CItem(**res.data[0]).shortString(), fin_date) )
 
 
 def default_action(op, title, args):
@@ -661,7 +698,7 @@ def show_unlisted(title, args):
 
     criteria = {'_t':'item'}
     if not show_fini:
-        criteria['finished'] = {'$exists':False}
+        criteria['active'] = 0
     items = db.find(criteria)
     unlisted = [b for b in items.data if b['_id'] not in ids]
 
@@ -674,7 +711,7 @@ def show_unlisted(title, args):
 def show_finished(title, args):
     header('finished')
     lists = db.find({'_t':'list'})
-    items = db.find({'_t':'item', 'finished':{'$exists':True}}).sort({'finished':1})
+    items = db.find({'_t':'item', 'active':0})
     iterate_over = reversed(items.data) if backwards else items.data
     for i, b in enumerate(iterate_over):
         bk = CItem(**b)
