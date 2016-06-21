@@ -24,36 +24,47 @@
 #    - everywhere the "finished" is checked, now we must check active==True instead
 
 * DATABASE - write a tiny script to
-    - on active set {active: 1}
-    - on all finished
-        - set {active: 0}
-        - remove member_of
-        - rewrite finished on finished items
-    - remove index from all (if any)
-
+    x on active set {active: 1}
+    x on all finished
+        x set {active: 0}
+        x remove member_of
+        x rewrite finished on finished items
+    x remove index from all (if any)
+    - rewrite dates to be in dbfmt = '%Y-%m-%d %H:%M:%S'
 """
 
-from datetime import datetime
+from json import loads, dumps
+with open( '/home/gnaughto/Private/logs/databases/todo.json' ) as f:
+    blob = f.read()
+rows = loads(blob)
 
-class Date:
-    fmt = "%a, %b %d %Y"
-    dbfmt = '%Y-%m-%d %H:%M:%S'
+jarg = {'sort_keys':True, 'indent':2}
 
-    def __init__(self, date=None, fmt=None):
-        self.date = date if date else datetime.now()
-        if fmt:
-            (d, t)  = fmt.split(' ')
-            self.date = datetime(*(int(s) for s in (d.split('-') + t.split(':'))))
+for row in rows:
+    if row.get('_t') and row.get('_t') == 'list':
+        continue
 
-    def str(self):
-        return datetime.strftime(self.date, self.fmt)
+    fin = row.get('finished')
 
-    def __str__(self):
-        return self.str()
+    if row.get('index'):
+        del row['index']
 
-    def db(self):
-        return datetime.strftime(self.date, self.dbfmt)
+    if row.get('added'):
+        row['added'] = row['added'].replace('T', ' ')[:19]
 
-d = Date()
-print(str(d))
-print(d.db())
+    if not fin:
+        row['active'] = 1
+        continue
+    else:
+        row['active'] = 0
+        fin = fin.replace('T', ' ')[:19]
+
+    member_of = row.get('member_of',[])
+    new_fin = []
+    new_fin.append( {'d':fin, 'l':member_of} )
+    row['finished'] = new_fin
+    if member_of:
+        del row['member_of']
+
+with open( './todo_fixed.json', 'w') as f:
+    f.write(dumps(rows, **jarg))

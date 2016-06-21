@@ -104,17 +104,17 @@ class CItem:
     def __init__(self, _t=None, _id=None, title=None, added=None, finished=None, comments=None, active=None):
         if _t:
             self._t = _t
-        if _id:
+        if _id is not None:
             self._id = _id
-        if title:
+        if title is not None:
             self.title = title
-        if added:
+        if added is not None:
             self.added = added
-        if finished:
+        if finished is not None:
             self.finished = finished
-        if comments:
+        if comments is not None:
             self.comments = comments
-        if active:
+        if active is not None:
             self.active = active
 
     #
@@ -347,7 +347,22 @@ def show_now_items( title, args ):
 
 # object equal
 def objeq( x, y ):
-    unmatched = set(x.items()) ^ set(y.items())
+# this always works until the val in a key:val is a list[]!
+#    unmatched = set(x.items()) ^ set(y.items())
+#    return len(unmatched) == 0
+
+# TODO: this is still broke
+    s = set()
+    r = set()
+    for k, v in x.items():
+        if type(v) is type({}):
+            v = set(v.items())
+        s = s.union(k).union(v)
+    for k, v in y.items():
+        if type(v) is type({}):
+            v = set(v.items())
+        r = r.union(k).union(v)
+    unmatched = r ^ s
     return len(unmatched) == 0
 
 def item_from_index_title( title ):
