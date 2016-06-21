@@ -389,7 +389,7 @@ def new_item( title, args ):
             add_item_to_list(c._id, lists)
 
             if len(lists) == 1:
-                for index in range(30):
+                for index in range(100):
                     if '-{}'.format(index) in args:
                         mv_item(lists.pop(), [c._id, index])
                         break
