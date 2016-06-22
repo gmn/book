@@ -6,8 +6,9 @@ mostly this app is to keep track of what I'm reading and reading next.
 
 import sys, os, json, re, random, copy
 
-BOOKS_PATH = '/home/gnaughto/Private/logs/databases/books.json'
-QUERYABLE_PATH = '/home/gnaughto/code/pyqueryable'
+USER = os.environ['USER']
+BOOKS_PATH = '/home/{}/Private/logs/databases/books.json'.format(USER)
+QUERYABLE_PATH = '/home/{}/code/pyqueryable'.format(USER)
 
 sys.path.append(QUERYABLE_PATH)
 from Queryable import db_object

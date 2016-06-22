@@ -49,8 +49,9 @@ Ideas:
 
 import sys, os, json, re, random
 
-TODO_PATH = '/home/{}/Private/logs/databases/todo.json'.format(os.environ['USER'])
-QUERYABLE_PATH = '/home/{}/code/pyqueryable'.format(os.environ['USER'])
+USER = os.environ['USER']
+TODO_PATH = '/home/{}/Private/logs/databases/todo.json'.format(USER)
+QUERYABLE_PATH = '/home/{}/code/pyqueryable'.format(USER)
 
 sys.path.append(QUERYABLE_PATH)
 from Queryable import db_object
