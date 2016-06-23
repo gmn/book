@@ -218,6 +218,9 @@ class CItem:
     def shortString(self):
         return '{}[{}] {}'.format('F=' if not self.active else '', self._id, self.title)
 
+    def __str__(self):
+        return self.shortString()
+
 
 class CList:
     _t = ''
@@ -270,6 +273,7 @@ class CList:
     def keys(self):
         return self.attribs
 
+# cant have method & member named "items"
 #    def items(self):
 #        a = []
 #        for key in self.attribs:
@@ -307,7 +311,7 @@ def print_item( i, item, longprint, Lists ):
     if longprint:
         p(item.toString(index='{}:'.format(i), lists=Lists.data))
     else:
-        p('{}: {}'.format((i), item.shortString()))
+        p('{}: {}'.format(i, item))
 
 def print_list( r, backwards, longprint, Lists ):
     header('items in list: "{}"'.format(r['name']))
@@ -431,7 +435,7 @@ def new_item( title, args ):
     res = db.find({'_t':'item','title':b.title,'active':1}).sort({'added':-1})
     if res.count() > 0:
         c = CItem(**res.data[0])
-        p('Adding:\n{}'.format(c.shortString()) )
+        p('Adding:\n{}'.format(c) )
 
         if len(args) > 1 and args[0] == '--lists':
             lists = args[1].split(',') # Comma-separated list of listnames, no spaces
@@ -474,7 +478,7 @@ def edit_item(title, args):
     if ans.lower().startswith('y'):
         db.update({'_id':item['_id']},{'$set':item.toDict()}).save()
         res = db.find({'_id':item['_id']})
-        p( '"{}" updated'.format(CItem(**res.data[0]).shortString()) )
+        p( '"{}" updated'.format(CItem(**res.data[0])) )
     else:
         p('skipping')
 
@@ -508,12 +512,12 @@ def add_item_to_list( title, args ):
 
         # see if the item is already in List
         if item_id in List.items:
-            p('** warning: "{}" is already in list "{}"'.format(item.shortString(),List['name']))
+            p('** warning: "{}" is already in list "{}"'.format(item,List['name']))
         else:
             List['items'].append(item_id)
             db.update({'_t':'list','name':List['name']},{'$set':{'items':List['items']}})
             db.save()
-            p('"{}" added to "{}"'.format(item.shortString(), List['name']) )
+            p('"{}" added to "{}"'.format(item, List['name']) )
 
 
 def finish_item(title):
@@ -524,11 +528,11 @@ def finish_item(title):
     item_id = item['_id']
 
     if not item['active']:
-        p('"{}" is already marked finished'.format(item.shortString()))
+        p('"{}" is already marked finished'.format(item))
         return
 
     ## confirm
-    if not input('Are you sure you want to finish "{}" y/N? '.format(item.shortString())).lower().startswith('y'):
+    if not input('Are you sure you want to finish "{}" y/N? '.format(item)).lower().startswith('y'):
         p('bailing')
         return
 
@@ -549,7 +553,7 @@ def finish_item(title):
 
     res = db.find({'_id':item_id})
     fin_date = Date(fmt=res.data[0]['finished'][-1]['d'])
-    p( '"{}" marked finished on "{}"'.format(CItem(**res.data[0]).shortString(), fin_date) )
+    p( '"{}" marked finished on "{}"'.format(CItem(**res.data[0]), fin_date) )
 
 
 def default_action(op, title, args):
@@ -622,7 +626,7 @@ def default_action(op, title, args):
                     ids.remove(_id)
                     bb = db.find({'_id':_id})
                     if bb.count():
-                        print_item( index, CItem(**bb.data[0]), longprint, Lists )
+                        print_item(index, CItem(**bb.data[0]), longprint, Lists)
                         index += 1
 
     # or show all lists
@@ -694,13 +698,13 @@ def listadd(title, args):
     ## report
     res = db.find({'_t':'list','name':o['name']})
     if res.data:
-        p( 'list created: "{}"'.format( CList(**res.data[0]).shortString()) )
+        p( 'list created: "{}"'.format( CList(**res.data[0])) )
 
 
 def print_lists():
     res = db.find({'_t':'list'}).sort({'_id':1})
     for i, r in enumerate(res.data):
-        p('{}: {}'.format( i+1, CList(**r).shortString() ))
+        p('{}: {}'.format( i+1, CList(**r) ))
 
 
 def show_unlisted(title, args):
@@ -763,7 +767,7 @@ def delete_item(title):
         p('** Error: item must be index or title')
         return
 
-    ans = input('delete: "{}"? y/N > '.format(item.shortString()))
+    ans = input('delete: "{}"? y/N > '.format(item))
     if ans.lower().startswith('y'):
         # rm item
         db.remove({'_t':'item', '_id':item['_id']})
@@ -780,7 +784,7 @@ def delete_item(title):
                 db.update({"_t":"list","_id":lst['_id']},{'$set':{'items':lst['items']}})
                 names.append(lst['name'])
         db.save()
-        p( '"{}" deleted'.format( item.shortString() ) )
+        p( '"{}" deleted'.format( item ) )
         if names:
             p( "removed from lists: {}".format(', '.join(names)) )
     else:
@@ -811,7 +815,7 @@ def rm_item_from_list(title, args):
     db.update({'_id':List['_id']}, {'$set':{'items':List['items']}}).save()
 
     ## report
-    p( '"{}" removed from "{}"'.format(item['title'], List['name']) )
+    p( '"{}" removed from "{}"'.format(item, List['name']) )
 
 
 def mv_item(title, args):
@@ -844,7 +848,7 @@ def mv_item(title, args):
 
     db.update({'_id':List['_id']}, {'$set':{'items':items}}).save()
 
-    p('Moved Item "{}" to Index "{}" in list: "{}"'.format(item.shortString(), new_index, List['name']))
+    p('Moved Item "{}" to Index "{}" in list: "{}"'.format(item, new_index, List['name']))
 
 
 def load_config():
