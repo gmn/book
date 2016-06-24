@@ -298,8 +298,8 @@ class CList:
     def shortString(self):
         return '[{}] {}'.format(self._id, self.name)
 
-
-
+    def __str__(self):
+        return self.shortString()
 
 
 def header(msg):
