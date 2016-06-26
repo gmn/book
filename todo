@@ -48,6 +48,7 @@ Ideas:
 """
 
 import sys, os, json, re, random
+from copy import deepcopy
 
 USER = os.environ['USER']
 TODO_PATH = '/home/{}/Private/logs/databases/todo.json'.format(USER)
@@ -69,14 +70,15 @@ longprint = False
 #
 from datetime import datetime
 
-class Date:
+class CDate:
     fmt = "%a, %b %d %Y"
-    dbfmt = '%Y-%m-%d %H:%M:%S'
+    fmt = "%b %d %Y, %a"
+    dbfmt = '%Y-%m-%d %H:%M:%S.%f'
 
     def __init__(self, date=None, fmt=None):
         if fmt:
-            (d, t) = fmt.split(' ')
-            self.date = datetime(*(int(s) for s in (d.split('-') + t.split(':'))))
+            d, t = fmt.split('T' if 'T' in fmt else ' ')
+            self.date = datetime(*(int(float(s)) for s in (d.split('-') + t.replace('.',':').split(':'))))
         else:
             self.date = date if date else datetime.now()
 
@@ -110,7 +112,7 @@ class CItem:
         if title is not None:
             self.title = title
         if added is not None:
-            self.added = added
+            self.added = added if added == 'now()' else CDate(fmt=added)
         if finished is not None:
             self.finished = finished
         if comments is not None:
@@ -160,7 +162,7 @@ class CItem:
                 continue
             val = self.__getattribute__(key)
             if val:
-                obj[key] = val
+                obj[key] = val.db() if type(val) is type(CDate()) else val
         return obj
 
     #
@@ -181,7 +183,7 @@ class CItem:
         for i in self.attribs[1:]:
             e = self.__getattribute__(i)
             if e:
-                obj[i] = e
+                obj[i] = e.db() if type(e) is type(CDate) else e
 
         if res.count() == 1: # reuse
             db.update({'_t':'item','_id':obj['_id']}, {'$set':obj})
@@ -301,6 +303,8 @@ class CList:
     def __str__(self):
         return self.shortString()
 
+def yn(msg):
+    return input('{} y/N > '.format(msg)).lower().startswith('y')
 
 def header(msg):
     p('-' * 39)
@@ -352,23 +356,9 @@ def show_now_items( title, args ):
 
 # object equal
 def objeq( x, y ):
-# this always works until the val in a key:val is a list[]!
-#    unmatched = set(x.items()) ^ set(y.items())
-#    return len(unmatched) == 0
-
-# TODO: this is still broke
-    s = set()
-    r = set()
-    for k, v in x.items():
-        if type(v) is type({}):
-            v = set(v.items())
-        s = s.union(k).union(v)
-    for k, v in y.items():
-        if type(v) is type({}):
-            v = set(v.items())
-        r = r.union(k).union(v)
-    unmatched = r ^ s
+    unmatched = set(x.items()) ^ set(y.items())
     return len(unmatched) == 0
+
 
 def item_from_index_title( title ):
     def from_title( title ):
@@ -458,11 +448,12 @@ def edit_item(title, args):
     for k in item.keys():
         if k.startswith('_'):
             continue
-        ans = input( '{:8} ["{}"] > '.format(k, item[k]))
+        val = item[k].db() if k == 'added' else item[k]
+        ans = input( '{:8} ["{}"] > '.format(k, val))
         if ans:
             item[k] = ans.lstrip().rstrip()
 
-# TODO: objeq is broke!
+# TODO: objeq is broke on list[] member values
 #    item2 = item_from_index_title( title )
 #    if objeq( item.toDict(), item2.toDict() ):
 #        p('no change')
@@ -472,7 +463,7 @@ def edit_item(title, args):
     for k in item.keys():
         if k not in item:   # in operator returns False here if member is 'falsey'
             continue
-        p( '{:8} "{}"'.format(k, item[k]) )
+        p( '{:8} "{}"'.format(k, item[k].db() if k == 'added' else item[k]) )
 
     ans = input('replace? y/N > ')
     if ans.lower().startswith('y'):
@@ -546,13 +537,13 @@ def finish_item(title):
             db.update({"_id":L["_id"]}, {'$set':{'items':L['items']}})
 
     ## append the new record
-    item.finished.append( {'d':Date().db(), 'l':member_of} )
+    item.finished.append( {'d':CDate().db(), 'l':member_of} )
 
     ## deactivate and save the record
     db.update({'_id':item_id},{'$set':{'finished':item.finished, 'active':0}}).save()
 
     res = db.find({'_id':item_id})
-    fin_date = Date(fmt=res.data[0]['finished'][-1]['d'])
+    fin_date = CDate(fmt=res.data[0]['finished'][-1]['d'])
     p( '"{}" marked finished on "{}"'.format(CItem(**res.data[0]), fin_date) )
 
 
@@ -732,8 +723,9 @@ def show_unlisted(title, args):
 def show_finished(title, args):
     header('finished')
     lists = db.find({'_t':'list'})
-    items = db.find({'_t':'item', 'active':0})
-    iterate_over = reversed(items.data) if backwards else items.data
+    res = db.find({'_t':'item', 'active':0})
+    generator = sorted(res.data, key=lambda row: row['finished'][-1]['d'])
+    iterate_over = reversed(generator) if backwards else generator
     for i, b in enumerate(iterate_over):
         bk = CItem(**b)
         print_item( i, bk, longprint, lists )
@@ -751,14 +743,30 @@ def listchange(title, args):
         p( '** Error: list not found' )
         return
 
-    orig = List['name']
+    orig = {'name':List['name'],'comments':List['comments']}
+
     name = input( 'name ["{}"] > '.format(List['name']) )
-    if not name or name == orig:
+    if not name:
+        name = List['name']
+
+    comments = input( 'comments ["{}"] > '.format(List['comments']) )
+    if not comments and List['comments']: # comments can be empty; don't prompt if they were empty before
+        if not yn( 'Change comments to empty?' ):
+            comments = List['comments']
+            p('keeping original comments')
+
+    if objeq( orig, {'name':name,'comments':comments}):
         p('not changed')
         return
 
-    db.update({'_t':'list', '_id':List['_id']}, {'$set':{'name':name}}).save()
-    p('list name change to "{}"'.format(name))
+    if name and name != List['name']:
+        db.update({'_t':'list', '_id':List['_id']}, {'$set':{'name':name}})
+    if comments != List['comments']:
+        db.update({'_t':'list', '_id':List['_id']}, {'$set':{'comments':comments}})
+
+    db.save()
+    res = db.find({'_t':'list', '_id':List['_id']})
+    p('list "{}" changed'.format(CList(**res.data[0])))
 
 
 def delete_item(title):
