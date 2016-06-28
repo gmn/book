@@ -455,7 +455,7 @@ def edit_item(title, args):
             update[k] = ans.lstrip().rstrip()
 
     if not update:
-        p('no change')
+        p('** no change **')
         return
 
     sys.stdout.write('\n--> CHANGED IN ITEM <--:\n')
