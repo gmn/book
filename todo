@@ -425,7 +425,7 @@ def new_item( title, args ):
     res = db.find({'_t':'item','title':b.title,'active':1}).sort({'added':-1})
     if res.count() > 0:
         c = CItem(**res.data[0])
-        p('Adding:\n{}'.format(c) )
+        p('Adding: "{}"'.format(c) )
 
         if len(args) > 1 and args[0] == '--lists':
             lists = args[1].split(',') # Comma-separated list of listnames, no spaces
@@ -445,29 +445,28 @@ def edit_item(title, args):
         p('** Error: item must be index or title')
         return
 
+    update = {}
     for k in item.keys():
         if k.startswith('_'):
             continue
         val = item[k].db() if k == 'added' else item[k]
         ans = input( '{:8} ["{}"] > '.format(k, val))
         if ans:
-            item[k] = ans.lstrip().rstrip()
+            update[k] = ans.lstrip().rstrip()
 
-# TODO: objeq is broke on list[] member values
-#    item2 = item_from_index_title( title )
-#    if objeq( item.toDict(), item2.toDict() ):
-#        p('no change')
-#        return
+    if not update:
+        p('no change')
+        return
 
-    sys.stdout.write('\n--> CHANGED ITEM <--:\n')
-    for k in item.keys():
-        if k not in item:   # in operator returns False here if member is 'falsey'
+    sys.stdout.write('\n--> CHANGED IN ITEM <--:\n')
+    for k in update:
+        if k not in item: # $in operator returns False if member val is 'falsey'
             continue
-        p( '{:8} "{}"'.format(k, item[k].db() if k == 'added' else item[k]) )
+        p( '{:8} "{}"'.format(k, update[k]) )
 
     ans = input('replace? y/N > ')
     if ans.lower().startswith('y'):
-        db.update({'_id':item['_id']},{'$set':item.toDict()}).save()
+        db.update({'_id':item['_id']},{'$set':update}).save()
         res = db.find({'_id':item['_id']})
         p( '"{}" updated'.format(CItem(**res.data[0])) )
     else:
