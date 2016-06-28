@@ -317,9 +317,11 @@ def print_item( i, item, longprint, Lists ):
     else:
         p('{}: {}'.format(i, item))
 
-def print_list( r, backwards, longprint, Lists ):
-    header('items in list: "{}"'.format(r['name']))
-    generator = reversed(r['items']) if backwards else r['items']
+def print_list( _list, backwards, longprint, Lists ):
+    if type(_list) is type({}):
+        _list = CList(**_list)
+    header('items in list: "{}"'.format(_list))
+    generator = reversed(_list.items) if backwards else _list.items
     for i, b in enumerate( generator ):
         bb = db.find({'_id':b})
         if bb.count():
@@ -598,6 +600,14 @@ def default_action(op, title, args):
         operator = ' | '
         for s in sets:
             ids = ids.union(s)
+    elif title == '^' or '^' in args:
+        operator = ' ^ '
+        for s in sets:
+            ids = ids.symmetric_difference(s)
+    elif title == '&~' or '&~' in args:
+        operator = ' & ~'
+        for s in sets:
+            ids = ids.difference(s)
     else:
         operator = ' & '
         if sets:
