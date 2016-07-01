@@ -460,10 +460,8 @@ def edit_item(title, args):
         return
 
     sys.stdout.write('\n--> CHANGED IN ITEM <--:\n')
-    for k in update:
-        if k not in item: # $in operator returns False if member val is 'falsey'
-            continue
-        p( '{:8} "{}"'.format(k, update[k]) )
+    for k, v in update.items():
+        p( '{:8} "{}"'.format(k, v) )
 
     ans = input('replace? y/N > ')
     if ans.lower().startswith('y'):
