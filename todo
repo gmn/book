@@ -219,7 +219,7 @@ class CItem:
         return s
 
     def shortString(self):
-        return '{}[{}] {}'.format('F=' if not self.active else '', self._id, self.title)
+        return '{}[{:3}] {}'.format('F=' if not self.active else '', self._id, self.title)
 
     def __str__(self):
         return self.shortString()
@@ -316,7 +316,7 @@ def print_item( i, item, longprint, Lists ):
     if longprint:
         p(item.toString(index='{}:'.format(i), lists=Lists.data))
     else:
-        p('{}: {}'.format(i, item))
+        p('{:3}: {}'.format(i, item))
 
 def print_list( _list, backwards, longprint, Lists ):
     if type(_list) is type({}):
