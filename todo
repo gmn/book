@@ -524,7 +524,7 @@ def finish_item(title, args):
 
     expire = '-e' in args or '-E' in args
     label = 'expired' if expire else 'finished'
-    skip = if '-y' in args
+    skip = '-y' in args
 
     ## confirm
     if not skip and not input('Are you sure you want to mark "{}" {} y/N? '.format(item, label)).lower().startswith('y'):
