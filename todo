@@ -524,9 +524,10 @@ def finish_item(title, args):
 
     expire = '-e' in args or '-E' in args
     label = 'expired' if expire else 'finished'
+    skip = if '-y' in args
 
     ## confirm
-    if not input('Are you sure you want to mark "{}" {} y/N? '.format(item, label)).lower().startswith('y'):
+    if not skip and not input('Are you sure you want to mark "{}" {} y/N? '.format(item, label)).lower().startswith('y'):
         p('bailing')
         return
 
@@ -928,7 +929,7 @@ def print_help():
   add                     add a item to a list
   listadd                 add a new list
   lists                   show all lists
-  finish [-e]             mark an item finished
+  finish [-e] [-y]        mark an item finished
   expire                  mark an item expired (same as 'finish -e')
   finished                show the items that have been finished
   unlisted                show items that are not in a list
