@@ -102,9 +102,10 @@ class CItem:
     comments = ''
 
     active = 1
-    attribs = ('_id', 'title', 'added', 'finished', 'comments', 'active')
+    expired = 0
+    attribs = ('_id', 'title', 'added', 'finished', 'comments', 'active', 'expired')
 
-    def __init__(self, _t=None, _id=None, title=None, added=None, finished=None, comments=None, active=None):
+    def __init__(self, _t=None, _id=None, title=None, added=None, finished=None, comments=None, active=None, expired=None):
         if _t:
             self._t = _t
         if _id is not None:
@@ -119,6 +120,8 @@ class CItem:
             self.comments = comments
         if active is not None:
             self.active = active
+        if expired is not None:
+            self.expired = expired
 
     #
     # dictionary-like interfaces
@@ -987,7 +990,7 @@ elif op == 'finish':                    # mark item finished
     finish_item(title, args)
 elif op == 'expire':                    # mark item expired
     copy_args = args.copy()
-    copy_args.append('e')
+    copy_args.append('-e')
     finish_item(title, copy_args)
 elif op == 'finished':
     show_finished(title, args)
