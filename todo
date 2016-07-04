@@ -646,22 +646,21 @@ def default_action(op, title, args):
         if List:
             print_list( List, backwards, longprint, Lists )
         else:
-            # or look for item
-            item = item_from_index_title( op )
-            if item:
-                header('item matching "{}"'.format(op))
-                print_item( 0, item, longprint, Lists )
-
-            # or, fail all that, regex against titles
+            # try to regex match titles
+            match = re.compile('.*{}.*'.format(op), re.IGNORECASE)
+            order = -1 if backwards else 1
+            res = db.find({'_t':'item','title':match}).sort({'_id':order})
+            if res.data:
+                header( 'items matching regex "{}"'.format(op) )
+                for i, bk in enumerate([CItem(**b) for b in res.data]):
+                    print_item( i, bk, longprint, Lists )
             else:
-                # try to match titles
-                match = re.compile('.*{}.*'.format(op), re.IGNORECASE)
-                order = -1 if backwards else 1
-                res = db.find({'_t':'item','title':match}).sort({'_id':order})
-                if res.data:
-                    header( 'items matching "{}"'.format(op) )
-                    for i, bk in enumerate([CItem(**b) for b in res.data]):
-                        print_item( i, bk, longprint, Lists )
+                # or look for item
+                item = item_from_index_title( op )
+                if item:
+                    header('item exactly matching "{}"'.format(op))
+                    print_item( 0, item, longprint, Lists )
+                # or, fail all that
                 else:
                     sys.stdout.write( '\n        **************' )
                     sys.stdout.write( '\n        ** no match **' )
