@@ -383,6 +383,7 @@ def item_from_index_title( title ):
         return from_title( title )
     return CItem( **res.data[0] )
 
+
 def list_from_index_name( name ):
     def from_name( name ):
         res = db.find({'_t':'list', 'name':name})
@@ -511,7 +512,7 @@ def add_item_to_list( title, args ):
             List['items'].append(item_id)
             db.update({'_t':'list','name':List['name']},{'$set':{'items':List['items']}})
             db.save()
-            p('"{}" added to "{}"'.format(item, List['name']) )
+            p('"{}" added to "{}"'.format(item, List) )
 
 
 def finish_item(title, args):
