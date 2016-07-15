@@ -216,9 +216,9 @@ class CItem:
             list_names = []
             for lst in lists:
                 if self._id in lst['items']:
-                    list_names.append(lst['name'])
+                    list_names.append( str(CList(**lst)) )
             if list_names:
-                s = '{}   member of  : {}\n'.format(s, ', '.join(list_names))
+                s = '{}   member of  : "{}"\n'.format(s, '", "'.join(list_names))
         return s
 
     def shortString(self):
@@ -306,6 +306,14 @@ class CList:
 
     def __str__(self):
         return self.shortString()
+
+    def toString(self):
+        main = '[{}] {}'.format(self._id, self.name)
+        if self.comments:
+            main = '{}\n    *comments: "{}"'.format(main, self.comments)
+        # TODO print items? maybe not.
+        return main
+
 
 def yn(msg):
     return input('{} y/N > '.format(msg)).lower().startswith('y')
@@ -583,14 +591,14 @@ def default_action(op, title, args):
         if r['name'] == op.lower():
             ids = set()
             sets.append(ids)
-            names.append(r['name'])
+            names.append(CList(**r).shortString())
             list_ids.append(r['_id'])
             for b in r['items']:
                 ids.add(b)
         elif r['name'] == title:
             ids = set()
             sets.append(ids)
-            names.append(r['name'])
+            names.append(CList(**r).shortString())
             list_ids.append(r['_id'])
             for b in r['items']:
                 ids.add(b)
@@ -599,7 +607,7 @@ def default_action(op, title, args):
                 if r['name'] == a:
                     ids = set()
                     sets.append(ids)
-                    names.append(r['name'])
+                    names.append(CList(**r).shortString())
                     list_ids.append(r['_id'])
                     for b in r['items']:
                         ids.add(b)
@@ -712,7 +720,11 @@ def listadd(title, args):
 def print_lists():
     res = db.find({'_t':'list'}).sort({'_id':1})
     for i, r in enumerate(res.data):
-        p('{}: {}'.format( i+1, CList(**r) ))
+        l = CList(**r)
+        if longprint:
+            p('{}: {}'.format( i+1, l.toString() ))
+        else:
+            p('{}: {}'.format( i+1, l.shortString() ))
 
 
 def show_unlisted(title, args):
