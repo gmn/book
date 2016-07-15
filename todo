@@ -717,7 +717,6 @@ def print_lists():
 
 def show_unlisted(title, args):
     header('unlisted')
-    show_fini = True if '--show-finished' in title or '--show-finished' in args else False
 
     lists = db.find({"_t":"list"})
     ids = {""}
@@ -726,8 +725,11 @@ def show_unlisted(title, args):
             ids.add(b)
 
     criteria = {'_t':'item'}
+
+    show_fini = True if '--show-finished' in title or '--show-finished' in args else False
     if not show_fini:
-        criteria['active'] = 0
+        criteria['active'] = 1
+
     items = db.find(criteria)
     unlisted = [b for b in items.data if b['_id'] not in ids]
 
