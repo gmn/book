@@ -175,8 +175,10 @@ class CItem:
         if self.check_exists(db):
             return False
 
-        res = db.find({'_t':'item','active':0,'title':re.compile(self.title, re.IGNORECASE)})
         obj = {'_t':'item'}
+
+        regex = re.compile(re.escape(self.title), re.IGNORECASE)
+        res = db.find({'_t':'item','active':0,'title':regex})
         if res.count() == 1:
             # reuse an inactive item with exact same title
             obj = res.data[0]
