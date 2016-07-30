@@ -514,14 +514,16 @@ def add_item_to_list( title, args ):
             if not input('List does not exist. Would you like to create "{}" y/N? '.format(arg)).lower().startswith('y'):
                 p('skipping')
                 continue
+            else:
+                listadd(arg, [])
+                List = list_from_index_name( arg )
 
         # see if the item is already in List
         if item_id in List.items:
             p('** warning: "{}" is already in list "{}"'.format(item, List))
         else:
             List['items'].append(item_id)
-            db.update({'_t':'list','name':List['name']},{'$set':{'items':List['items']}})
-            db.save()
+            db.update({'_t':'list','name':List['name']},{'$set':{'items':List['items']}}).save()
             p('"{}" added to "{}"'.format(item, List) )
 
 
