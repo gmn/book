@@ -377,39 +377,35 @@ def objeq( x, y ):
 
 
 def item_from_index_title( title ):
-    def from_title( title ):
+    try:                    # is integer argument
+        index = int(title)
+        res = db.find({'_t':'item', '_id':index})
+        if res.count() != 1:
+            return False    # not found
+        else:
+            return CItem( **res.data[0] )
+    except:                 # is exact title
         res = db.find({'_t':'item', 'title':title}).sort({'added':-1})
         if not res.data:
-            return False
-        return CItem( **res.data[0] )
-
-    try:
-        index = int(title)
-    except:
-        return from_title( title )
-
-    res = db.find({'_t':'item', '_id':index})
-    if res.count() != 1:
-        return from_title( title )
-    return CItem( **res.data[0] )
+            return False    # not found
+        else:
+            return CItem( **res.data[0] )
 
 
 def list_from_index_name( name ):
-    def from_name( name ):
+    try:
+        index = int(name)           # try to cast it
+        res = db.find({'_t':'list', '_id':index})
+        if res.count() != 1:
+            return False
+        else:
+            return CList(**res.data[0])
+    except:
         res = db.find({'_t':'list', 'name':name})
         if res.count() != 1:
             return False
-        return CList(**res.data[0])
-
-    try:
-        index = int(name)           # try to cast it
-    except:
-        return from_name( name )    # if not must be name or nothing
-
-    res = db.find({'_t':'list', '_id':index})
-    if res.count() != 1:
-        return from_name( name )
-    return CList(**res.data[0])
+        else:
+            return CList(**res.data[0])
 
 
 def new_item( title, args ):
@@ -662,26 +658,40 @@ def default_action(op, title, args):
         if List:
             print_list( List, backwards, longprint, Lists )
         else:
-            # try to regex match titles
-            match = re.compile('.*{}.*'.format(op), re.IGNORECASE)
-            order = -1 if backwards else 1
-            res = db.find({'_t':'item','title':match}).sort({'_id':order})
-            if res.data:
-                header( 'items matching regex "{}"'.format(op) )
-                for i, bk in enumerate([CItem(**b) for b in res.data]):
-                    print_item( i, bk, longprint, Lists )
+            def is_int_and_found(x):
+                try:
+                    integer = int(x)
+                    item = item_from_index_title( integer )
+                    return item
+                except:
+                    return False
+
+            # if it is an int, do item lookup first before regex. Otherwise, titles with matching number breaks item lookup by int
+            item = is_int_and_found(op)
+            if item:
+                header('item exactly matching "{}"'.format(op))
+                print_item( 0, item, longprint, Lists )
             else:
-                # or look for item
-                item = item_from_index_title( op )
-                if item:
-                    header('item exactly matching "{}"'.format(op))
-                    print_item( 0, item, longprint, Lists )
-                # or, fail all that
+                # try to regex match titles
+                match = re.compile('.*{}.*'.format(op), re.IGNORECASE)
+                order = -1 if backwards else 1
+                res = db.find({'_t':'item','title':match}).sort({'_id':order})
+                if res.data:
+                    header( 'items matching regex "{}"'.format(op) )
+                    for i, bk in enumerate([CItem(**b) for b in res.data]):
+                        print_item( i, bk, longprint, Lists )
                 else:
-                    sys.stdout.write( '\n        **************' )
-                    sys.stdout.write( '\n        ** no match **' )
-                    sys.stdout.write( '\n        **************\n\n' )
-                    print_help()
+                    # or look for item
+                    item = item_from_index_title( op )
+                    if item:
+                        header('item exactly matching "{}"'.format(op))
+                        print_item( 0, item, longprint, Lists )
+                    # or, fail all that
+                    else:
+                        sys.stdout.write( '\n        **************' )
+                        sys.stdout.write( '\n        ** no match **' )
+                        sys.stdout.write( '\n        **************\n\n' )
+                        print_help()
 
 
 def listadd(title, args):
