@@ -502,6 +502,17 @@ def add_item_to_list( title, args ):
         return
     item_id = item['_id']
 
+    # see if index '-i'
+    if '-i' in args:
+        index = int(args[args.index('-i')+1])
+        args = args[:args.index('-i')] + args[args.index('-i')+2:]
+    else:
+        index = False
+
+    if not ( index is False ):
+        if len(args) > 1:
+            p('**warning: attempt to move index for multiple lists. Only specify 1 list when indexing')
+
     # FOR LISTS
     for arg in args:
         # LIST
@@ -521,6 +532,10 @@ def add_item_to_list( title, args ):
             List['items'].append(item_id)
             db.update({'_t':'list','name':List['name']},{'$set':{'items':List['items']}}).save()
             p('"{}" added to "{}"'.format(item, List) )
+
+            if not ( index is False ):
+                if len(args) == 1:
+                    mv_item( arg, [ item_id, index ] )
 
 
 def finish_item(title, args):
