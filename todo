@@ -1004,9 +1004,9 @@ def print_help():
     p("""Usage:
   --help, -h              show this help
   recent                  show all items
-  new   [--lists <N,..>]  add a new item
+  new    [--lists <N,..>] add a new item
   edit                    edit item
-  add                     add a item to a list
+  add    [-i index]       add a item to a list
   listadd                 add a new list
   lists                   show all lists
   finish [-e] [-y]        mark an item finished
