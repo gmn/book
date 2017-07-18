@@ -352,6 +352,13 @@ def show_recent_items( title, args ):
         print_item( index, item, longprint, lists )
 
 
+def get_cols_rows():
+    try:
+        return os.get_terminal_size(0)
+    except OSError:
+        return os.get_terminal_size(1)
+
+
 def show_now_items( title, args ):
     global LIST_LIMIT
     lists = db.find({'_t':'list','name':'now'}).sort({'name':1})
@@ -359,15 +366,20 @@ def show_now_items( title, args ):
 
     res = db.find({'_t':'item','active':1,'_id':{'$in':items}})
 
+    col,row = get_cols_rows()
+
     # order of items determines order printed
     items = list(reversed(items) if backwards else items)
     index = 0
-    for _id in items:
+    for item_index,_id in enumerate(items):
         for it in res.data:
             if it['_id'] == _id:
                 print_item( index, CItem(**it), longprint, lists )
                 index += 1
                 break
+        if index >= row - 3 and item_index < len(items)-1:
+            p( '>>>>>>>>> MORE <<<<<<<<<' )
+            break
         if LIST_LIMIT != 0 and index >= LIST_LIMIT:
             break
 
@@ -651,19 +663,19 @@ def default_action(op, title, args):
 
     ids = set()
     if title == '|' or '|' in args:
-        operator = ' | '
+        operator = '" | "'
         for s in sets:
             ids = ids.union(s)
     elif title == '^' or '^' in args:
-        operator = ' ^ '
+        operator = '" ^ "'
         for s in sets:
             ids = ids.symmetric_difference(s)
     elif title == '&~' or '&~' in args:
-        operator = ' & ~'
+        operator = '" & ~"'
         for s in sets:
             ids = ids.difference(s)
     else:
-        operator = ' & '
+        operator = '" & "'
         if sets:
             ids = sets[0]
             for i in range(1, len(sets)):
