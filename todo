@@ -17,6 +17,19 @@ List:
     items: []
 
 TODO
+    - make default actions more explicit, meaning, there is
+        obviously a logical flow, but what if we want to guarantee
+        one of them is the outcome, there should be explicit commands
+        for each
+    - there should be a canonical list of finished items that is
+        independent of the state of anything else.  A hidden list that
+        stores, what it was and when it finished.
+    - items shold be able to be finished from one list and not another.
+        so basically setting finished status on an item is WRONG.
+        Instead, items not in a list go into a special list or get a
+        special status: INACTIVE, which can be for many reasons, one
+        of them is they're finished from all lists
+
     X remove _id of finished item from all lists, by hand
     X finish_item() removes _id from all lists, and writes a
         record of what list_id it belonged to "member_of": []
@@ -458,11 +471,18 @@ def new_item( title, args ):
             add_item_to_list(c._id, lists)
 
             # TODO: use regex instead
+            #
+            # Move item to this index in list
+            #
             if len(lists) == 1:
-                for index in range(100):
-                    if '-{}'.format(index) in args:
-                        mv_item(lists.pop(), [c._id, index])
-                        break
+                if '-i' in args:
+                    index = int(args[args.index('-i')+1])
+                    mv_item( lists.pop(), [ c._id, index ] )
+                else:
+                    for index in range(100):
+                        if '-{}'.format(index) in args:
+                            mv_item(lists.pop(), [c._id, index])
+                            break
 
 
 def edit_item(title, args):
@@ -1004,7 +1024,7 @@ def print_help():
     p("""Usage:
   --help, -h              show this help
   recent                  show all items
-  new    [--lists <N,..>] add a new item
+  new    [--lists -N|-i]  add a new item
   edit                    edit item
   add    [-i index]       add a item to a list
   listadd                 add a new list
