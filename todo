@@ -1023,7 +1023,7 @@ def set_defaults():
 def print_help():
     p("""Usage:
   --help, -h              show this help
-  recent                  show all items
+  recent                  show recent items
   new    [--lists -N|-i]  add a new item
   edit                    edit item
   add    [-i index]       add a item to a list
@@ -1037,17 +1037,17 @@ def print_help():
   del                     delete an item completely
   rm <itm> <list>         remove item from list
   mv <lst> <_id> <index>  In a List, move an item to a new index
+  all                     show all active items by list
 
   default:
     [list_name]           show items in a list of matching: list_name
-
+    [regex]               If list is not matched, show items matching regex
   general:
     --limit N             limit number of results returned in listing queries
     --lists ls1,ls2       When creating new Item, include it in (comma-separated) lists
     -l                    long print format
     -r                    reverse order
-    --show-finished       show_unlisted will not show finished w/o this flag
-""")
+    --show-finished       show_unlisted will not show finished w/o this flag""")
 
 
 ##############################################
@@ -1101,7 +1101,7 @@ elif op == 'del':
     delete_item(title)
 elif op == 'rm':
     rm_item_from_list(title, args)
-elif op == 'mv':
+elif op == 'mv' or op == 'move':
     mv_item(title, args)
 else:
     default_action(op, title, args)
