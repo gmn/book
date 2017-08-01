@@ -17,6 +17,8 @@ List:
     items: []
 
 TODO
+    - expired is broken, it still stores the date in finished, and only marks
+        {"expired":1}, if you enable and then finish, what happens?
     - make default actions more explicit, meaning, there is
         obviously a logical flow, but what if we want to guarantee
         one of them is the outcome, there should be explicit commands
@@ -29,6 +31,17 @@ TODO
         Instead, items not in a list go into a special list or get a
         special status: INACTIVE, which can be for many reasons, one
         of them is they're finished from all lists
+    - recurring items. I have to pay the same bill at the same
+        time every month. Groceries are similarly like this. Instead of
+        finishing them, and then *remembering* to re-add them, they should
+        get re-added automatically. In fact it should produce a message:
+        - "Re-Adding 'buy milk' [c] to cancel" when run on a date
+        past the repeat_add_date
+        - Also, from finish times, after a few months the app should
+         be able to figure out the approx amount of time needed between
+        repeat items and automatically adjust itself. Instead of 30
+        days, it might tweek to 41 days, merely by averageing the past 3
+        periods.
 
     X remove _id of finished item from all lists, by hand
     X finish_item() removes _id from all lists, and writes a
@@ -237,7 +250,7 @@ class CItem:
         return s
 
     def shortString(self):
-        return '{}[{:3}] {}'.format('F=' if not self.active else '', self._id, self.title)
+        return '{}[{:3}] {}'.format('E=' if self.expired else 'F=' if not self.active else '', self._id, self.title)
 
     def __str__(self):
         return self.shortString()
@@ -629,7 +642,7 @@ def enable_item(title, args):
         p('bailing')
         return
 
-    db.update({'_id':item_id},{'$set':{'active':1}}).save()
+    db.update({'_id':item_id},{'$set':{'active':1,'expired':0}}).save()
     res = db.find({"_id":item_id})
     p( '"{}" marked active'.format( CItem(**res.data[0]) ) )
 
@@ -837,7 +850,7 @@ def show_unlisted(title, args):
 def show_finished(title, args):
     header('finished')
     lists = db.find({'_t':'list'})
-    res = db.find({'_t':'item', 'active':0})
+    res = db.find({'_t':'item', 'finished':{'$exists':True}})
     generator = sorted(res.data, key=lambda row: row['finished'][-1]['d'])
     iterate_over = reversed(generator) if backwards else generator
     for i, b in enumerate(iterate_over):
