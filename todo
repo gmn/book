@@ -637,10 +637,21 @@ def enable_item(title, args):
         p('"{}" is already active'.format(item))
         return
 
-    ## confirm
-    if not input('Are you sure you want to mark "{}" active y/N? '.format(item)).lower().startswith('y'):
-        p('bailing')
-        return
+    if len(args) > 1 and '--list' in args[0]:
+        pass # get list from args[1]
+        List = list_from_index_name( args[1] )
+        if not List:
+            p('** Error: must be List identifier')
+            return
+        List['items'].append(item_id)
+        db.update({'_t':'list','name':List['name']},{'$set':{'items':List['items']}}).save()
+        p('"{}" added to "{}"'.format(item, List) )
+        if len(args) > 3 and '-i' == args[2]:
+            mv_item( List['_id'], [ item_id, int(args[3]) ] )
+    else: ## confirm
+        if not input('Are you sure you want to mark "{}" active y/N? '.format(item)).lower().startswith('y'):
+            p('bailing')
+            return
 
     db.update({'_id':item_id},{'$set':{'active':1,'expired':0}}).save()
     res = db.find({"_id":item_id})
@@ -1044,6 +1055,7 @@ def print_help():
   lists                   show all lists
   finish [-e] [-y]        mark an item finished
   expire                  mark an item expired (same as 'finish -e')
+  enable [--list x -i y]  enable an item and optionally add it to a list, at an index
   finished                show the items that have been finished
   unlisted                show items that are not in a list
   listchange              edit a list
@@ -1078,7 +1090,7 @@ args = sys.argv[3:]
 
 load_config()
 
-set_defaults()
+set_defaults() # this remvoves '-r', '-l' from arguments list, beware
 
 reserved = ('-h','--help','all','-l','recent','-r','new','-n','edit','-e','add','listadd','lists','finish','finished','unlisted','listchange','del','rm','mv','--limit','--lists')
 
