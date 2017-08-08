@@ -358,6 +358,7 @@ def print_item( i, item, longprint, Lists ):
         p('{:3}: {}'.format(i, item))
 
 def print_list( _list, backwards, longprint, Lists ):
+    global LIST_LIMIT
     if type(_list) is type({}):
         _list = CList(**_list)
     header('items in list: "{}"'.format(_list))
@@ -367,6 +368,8 @@ def print_list( _list, backwards, longprint, Lists ):
         if bb.count():
             bk = CItem(**bb.data[0])
             print_item( i, bk, longprint, Lists )
+        if LIST_LIMIT != 0 and i >= LIST_LIMIT:
+            break
 
 
 def show_recent_items( title, args ):
@@ -738,6 +741,8 @@ def default_action(op, title, args):
                     if bb.count():
                         print_item(index, CItem(**bb.data[0]), longprint, Lists)
                         index += 1
+                        if LIST_LIMIT != 0 and index >= LIST_LIMIT:
+                            break
 
     # or show all lists
     elif op.lower() == 'all':
@@ -773,6 +778,8 @@ def default_action(op, title, args):
                     header( 'items matching regex "{}"'.format(op) )
                     for i, bk in enumerate([CItem(**b) for b in res.data]):
                         print_item( i, bk, longprint, Lists )
+                        if LIST_LIMIT != 0 and i >= LIST_LIMIT:
+                            break
                 else:
                     # or look for item
                     item = item_from_index_title( op )
@@ -1015,12 +1022,12 @@ def set_defaults():
     z = 1000000
     D = LIST_LIMIT = config.get( 'default_rows', z )
     if '--limit' == op:
-        op = ''
+        op = [] if not args else args.pop(0)
         LIST_LIMIT = title
-        title = ''
+        title = [] if not args else args.pop(0)
     elif '--limit' == title:
         LIST_LIMIT = args.pop(0)
-        title = ''
+        title = [] if not args else args.pop(0)
     elif '--limit' in args:
         i = args.index('--limit')
         args.pop(i)
@@ -1036,9 +1043,10 @@ def set_defaults():
     backwards = True if '-r' in op or '-r' in title or '-r' in args else False
     longprint = True if '-l' in op or '-l' in title or '-l' in args else False
     if op == '-l' or op == '-r':
-        op = ''
+        op = title
+        title = [] if not args else args.pop(0)
     if title == '-l' or title == '-r':
-        title = ''
+        title = [] if not args else args.pop(0)
     for l in ('-r','-l'):
         if l in args:
             args.remove(l)
@@ -1082,15 +1090,18 @@ def print_help():
 ##############################################
 
 # arguments
+
 op   = sys.argv[1:2]
 op = '' if len(op) == 0 else op.pop().lower()
 title = sys.argv[2:3]
 title = '' if len(title) == 0 else title.pop()
+
 args = sys.argv[3:]
 
-load_config()
+set_defaults()  # remvoves '--limit', '-r', '-l' from arguments list, beware
+#print('op:{}, title:{}, args:{}'.format(op,title,args))
 
-set_defaults() # this remvoves '-r', '-l' from arguments list, beware
+load_config()
 
 reserved = ('-h','--help','all','-l','recent','-r','new','-n','edit','-e','add','listadd','lists','finish','finished','unlisted','listchange','del','rm','mv','--limit','--lists')
 
