@@ -244,7 +244,8 @@ class CItem:
             list_names = []
             for lst in lists:
                 if self._id in lst['items']:
-                    list_names.append( str(CList(**lst)) )
+                    index = lst['items'].index(self._id)
+                    list_names.append( '{}:{}'.format(str(CList(**lst)), index) )
             if list_names:
                 s = '{}   member of  : "{}"\n'.format(s, '", "'.join(list_names))
         return s
@@ -482,7 +483,7 @@ def new_item( title, args ):
         c = CItem(**res.data[0])
         p('Adding: "{}"'.format(c) )
 
-        if len(args) > 1 and args[0] == '--lists':
+        if len(args) > 1 and '--list' in args[0]:
             lists = args[1].split(',') # Comma-separated list of listnames, no spaces
             add_item_to_list(c._id, lists)
 
