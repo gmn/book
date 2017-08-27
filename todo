@@ -455,7 +455,7 @@ def new_item( title, args ):
     obj = {'_t':'item', 'title':title, 'added':'now()', 'active':1}
 
     comments = False
-    if args and args[0] != '--lists':
+    if args and '--list' not in args[0]:
         obj['comments'] = comments = args[0]
         args.pop(0)
 
@@ -1055,33 +1055,33 @@ def set_defaults():
 
 def print_help():
     p("""Usage:
-  --help, -h              show this help
-  recent                  show recent items
-  new    [--lists -N|-i]  add a new item
-  edit                    edit item
-  add    [-i index]       add a item to a list
-  listadd                 add a new list
-  lists                   show all lists
-  finish [-e] [-y]        mark an item finished
-  expire                  mark an item expired (same as 'finish -e')
-  enable [--list x -i y]  enable an item and optionally add it to a list, at an index
-  finished                show the items that have been finished
-  unlisted                show items that are not in a list
-  listchange              edit a list
-  del                     delete an item completely
-  rm <itm> <list>         remove item from list
-  mv <lst> <_id> <index>  In a List, move an item to a new index
-  all                     show all active items by list
+  --help, -h                    show this help
+  recent                        show recent items
+  new    [--list <x> [-i <y>]]  add a new item
+  edit                          edit item
+  add    [-i index]             add a item to a list
+  listadd                       add a new list
+  lists                         show all lists
+  finish [-e] [-y]              mark an item finished
+  expire                        mark an item expired (same as 'finish -e')
+  enable [--list <x> [-i <y>]]  enable an item and optionally add it to a list, at an index
+  finished                      show the items that have been finished
+  unlisted                      show items that are not in a list
+  listchange                    edit a list
+  del                           delete an item completely
+  rm <itm> <list>               remove item from list
+  mv <lst> <_id> <index>        In a List, move an item to a new index
+  all                           show all active items by list
 
   default:
-    [list_name]           show items in a list of matching: list_name
-    [regex]               If list is not matched, show items matching regex
+    [list_name]                 show items in a list of matching: list_name
+    [regex]                     If list is not matched, show items matching regex
   general:
-    --limit N             limit number of results returned in listing queries
-    --lists ls1,ls2       When creating new Item, include it in (comma-separated) lists
-    -l                    long print format
-    -r                    reverse order
-    --show-finished       show_unlisted will not show finished w/o this flag""")
+    --limit N                   limit number of results returned in listing queries
+    --lists ls1,ls2             When creating new Item, include it in (comma-separated) lists
+    -l                          long print format
+    -r                          reverse order
+    --show-finished             unlisted will not show finished w/o this flag""")
 
 
 ##############################################
